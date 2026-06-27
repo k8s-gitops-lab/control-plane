@@ -1,0 +1,32 @@
+# Profil operateur optionnel.
+# Les repos references ci-dessous doivent rester executables seuls avec leurs
+# propres valeurs par defaut. Ce fichier ne fait que passer des surcharges
+# coherentes quand on orchestre le POC depuis control-plane.
+platform:
+  domain: 192.168.33.100.nip.io
+  gitlab:
+    namespace: gitlab
+    internalHost: gitlab-webservice-default.gitlab.svc.cluster.local:8181
+  argocd:
+    namespace: argocd
+  registry:
+    namespace: registry
+    host: registry.registry.svc.cluster.local:5000
+  repositories:
+    cluster: ../cluster
+    platform: ../platform-cicd
+    toolbox: ../toolbox
+    ciTemplates: ../ci-templates
+
+versions:
+  kubernetes: "1.36.2"
+  kubernetesMinor: "1.36"
+  flannel: v0.28.5
+  metricsServer: v0.8.1
+  gatewayApi: v1.5.1
+  helm: 3.18.6
+  localPathProvisioner: v0.0.31
+  metallbChart: 0.14.9
+  traefikChart: 41.0.0
+  argocd: v3.4.4
+  ciTemplateRef: v0.11.1
