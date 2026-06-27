@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 from __future__ import annotations
 
 import sys
@@ -47,14 +46,14 @@ def main() -> None:
         "METALLB_CHART_VERSION": versions["metallbChart"],
         "GATEWAY_API_VERSION": versions["gatewayApi"],
         "CI_TEMPLATE_REF": versions["ciTemplateRef"],
-        "CLUSTER_REPO": ROOT / repos["cluster"],
-        "PLATFORM_REPO_ROOT": ROOT / repos["platform"],
-        "TOOLBOX_REPO": ROOT / repos["toolbox"],
-        "CI_TEMPLATE_SOURCE_DIR": ROOT / repos["ciTemplates"],
+        "CLUSTER_REPO": repos["cluster"],
+        "PLATFORM_REPO_ROOT": repos["platform"],
+        "TOOLBOX_REPO": repos["toolbox"],
+        "CI_TEMPLATE_SOURCE_DIR": repos["ciTemplates"],
     }
 
     for key, value in values.items():
-        print(f"export {key}={shell_quote(Path(value).resolve() if isinstance(value, Path) else value)}")
+        print(f"export {key}={shell_quote(value)}")
 
 
 if __name__ == "__main__":

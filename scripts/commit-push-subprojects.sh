@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 set -u
 
 usage() {
@@ -22,13 +21,9 @@ Hypotheses:
 USAGE
 }
 
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-repo_root="$(cd "$script_dir/.." && pwd)"
-workspace_root="$(cd "$repo_root/.." && pwd)"
-
 message=""
 target=""
-root_dir="$workspace_root"
+root_dir=".."
 dry_run=false
 
 while [ "$#" -gt 0 ]; do

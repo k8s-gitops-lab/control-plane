@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 set -u
 
 usage() {
@@ -28,12 +27,8 @@ Exemples:
 USAGE
 }
 
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-repo_root="$(cd "$script_dir/.." && pwd)"
-workspace_root="$(cd "$repo_root/.." && pwd)"
-
 org="poc-devops-elkouhen"
-dest="$workspace_root"
+dest=".."
 protocol="https"
 update_existing=false
 dry_run=false

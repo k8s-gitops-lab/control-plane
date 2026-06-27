@@ -1,5 +1,7 @@
 .DS_Store
 .env
+.control-plane.env
 .venv/
+.pycache/
 __pycache__/
 *.pyc

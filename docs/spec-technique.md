@@ -90,7 +90,7 @@ Notes :
 seul dépôt de code (`helloworld`), deux sous-dossiers/modules
 `helloworld-svc` (API FastAPI) et `helloworld-gui` (frontend statique
 nginx, qui appelle l'API via `helloworld-svc` en DNS interne du namespace,
-`/api/` proxié — pas de configuration d'URL par stage). Le fichier
+avec un préfixe HTTP proxié — pas de configuration d'URL par stage). Le fichier
 `argocd/apps/helloworld.yaml` porte `code:` au niveau app (pas par service) et `services: [...]` ne liste
 plus que `name`/`image` par service ; `../platform-cicd/scripts/gitlab-seed.py` crée et
 seed un seul projet GitLab par app (boucle `apps` de l'inventaire) ;
@@ -228,7 +228,7 @@ hors du dépôt plateforme. Les scripts y acceptent `PLATFORM_REPO_ROOT` pour
 pointer vers la racine `platform-cicd` :
 
 ```sh
-PLATFORM_REPO_ROOT=/chemin/vers/platform-cicd \
+PLATFORM_REPO_ROOT=../platform-cicd \
   python3 ../toolbox/scripts/render-argocd-apps.py
 ```
 
@@ -303,7 +303,7 @@ Dette active hors chaîne CI/CD applicative :
 - Le pull d'image par kubelet/containerd s'exécute dans le namespace réseau du
   **nœud**, pas dans celui d'un pod : il n'a donc pas accès à CoreDNS pour
   résoudre `registry.registry.svc.cluster.local`. Nécessite `node-registry-dns`
-  (entrée `/etc/hosts` statique sur le nœud vers le ClusterIP du Service) — à
+  (entrée hosts statique sur le nœud vers le ClusterIP du Service) — à
   relancer si le ClusterIP du registry change (recréation du Service).
 
 ## Annexe : cluster Ansible/k8s

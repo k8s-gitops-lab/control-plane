@@ -67,8 +67,8 @@ Les compromis de securite propres au POC sont documentes dans
 Les scripts operateur du workspace sont versionnes dans `scripts/` :
 
 ```sh
-scripts/clone-github-org.sh
-scripts/commit-push-subprojects.sh --message "..." --remote github
+bash scripts/clone-github-org.sh
+bash scripts/commit-push-subprojects.sh --message "..." --remote github
 ```
 
 Par defaut, ils ciblent le dossier parent de `control-plane`, c'est-a-dire le
