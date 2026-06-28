@@ -3,7 +3,7 @@ ENV_FILE ?= .control-plane.env
 MAKE_BIN ?= make
 ENV = CONFIG="$(CONFIG)" python3 scripts/export-env.py > "$(ENV_FILE)" && . "$(ENV_FILE)"
 
-.PHONY: help env vm-images-build vm-images-add vm-images cluster-up cluster-from-images platform-up platform-bootstrap gitlab-seed argocd-repo-creds status
+.PHONY: help env vm-images-build vm-images-add vm-images cluster-up cluster-from-images platform-up platform-fast-up platform-bootstrap platform-down platform-destroy gitlab-seed argocd-repo-creds argocd-password gitlab-password status
 
 help: ## Affiche cette aide
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-24s\033[0m %s\n", $$1, $$2}'
@@ -54,11 +54,21 @@ platform-bootstrap: ## Bootstrap ArgoCD et la plateforme via ../platform-cicd
 	  ARGOCD_NAMESPACE="$$ARGOCD_NAMESPACE" \
 	  REGISTRY_NAMESPACE="$$REGISTRY_NAMESPACE"
 
+platform-down: ## Eteint les VMs de la plateforme sans les detruire
+	@$(ENV); \
+	echo "==> control-plane: platform-down -> make -C $$CLUSTER_REPO down"; \
+	$(MAKE_BIN) -C "$$CLUSTER_REPO" down
+
+platform-destroy: ## Detruit les VMs de la plateforme
+	@$(ENV); \
+	echo "==> control-plane: platform-destroy -> make -C $$CLUSTER_REPO destroy"; \
+	$(MAKE_BIN) -C "$$CLUSTER_REPO" destroy
+
 gitlab-seed: ## Seed les projets GitLab via ../toolbox
 	@$(ENV); \
 	echo "==> control-plane: gitlab-seed -> make -C $$TOOLBOX_REPO gitlab-seed"; \
 	$(MAKE_BIN) -C "$$TOOLBOX_REPO" gitlab-seed \
-	  PLATFORM_REPO_ROOT="$$PLATFORM_REPO_ROOT" \
+	  PLATFORM_REPO_ROOT="$$GITOPS_REPO_ROOT" \
 	  GITLAB_DOMAIN="$$GITLAB_DOMAIN" \
 	  GITLAB_NAMESPACE="$$GITLAB_NAMESPACE" \
 	  CI_TEMPLATE_SOURCE_DIR="$$CI_TEMPLATE_SOURCE_DIR"
@@ -67,10 +77,22 @@ argocd-repo-creds: ## Cree les credentials ArgoCD pour les repos manifests prive
 	@$(ENV); \
 	echo "==> control-plane: argocd-repo-creds -> make -C $$TOOLBOX_REPO argocd-repo-creds"; \
 	$(MAKE_BIN) -C "$$TOOLBOX_REPO" argocd-repo-creds \
-	  PLATFORM_REPO_ROOT="$$PLATFORM_REPO_ROOT" \
+	  PLATFORM_REPO_ROOT="$$GITOPS_REPO_ROOT" \
 	  GITLAB_DOMAIN="$$GITLAB_DOMAIN" \
 	  GITLAB_NAMESPACE="$$GITLAB_NAMESPACE" \
 	  ARGOCD_NAMESPACE="$$ARGOCD_NAMESPACE"
+
+argocd-password: ## Affiche le mot de passe admin initial d'ArgoCD
+	@$(ENV); \
+	echo "==> control-plane: argocd-password -> make -C $$PLATFORM_REPO_ROOT argocd-password"; \
+	$(MAKE_BIN) -C "$$PLATFORM_REPO_ROOT" argocd-password \
+	  ARGOCD_NAMESPACE="$$ARGOCD_NAMESPACE"
+
+gitlab-password: ## Affiche le mot de passe root initial de GitLab
+	@$(ENV); \
+	echo "==> control-plane: gitlab-password -> make -C $$PLATFORM_REPO_ROOT gitlab-password"; \
+	$(MAKE_BIN) -C "$$PLATFORM_REPO_ROOT" gitlab-password \
+	  GITLAB_NAMESPACE="$$GITLAB_NAMESPACE"
 
 status: ## Affiche l'etat ArgoCD depuis ../platform-cicd
 	@$(ENV); echo "==> control-plane: status -> make -C $$PLATFORM_REPO_ROOT status"; $(MAKE_BIN) -C "$$PLATFORM_REPO_ROOT" status ARGOCD_NAMESPACE="$$ARGOCD_NAMESPACE"

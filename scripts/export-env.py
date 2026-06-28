@@ -48,6 +48,7 @@ def main() -> None:
         "CI_TEMPLATE_REF": versions["ciTemplateRef"],
         "CLUSTER_REPO": repos["cluster"],
         "PLATFORM_REPO_ROOT": repos["platform"],
+        "GITOPS_REPO_ROOT": repos["gitops"],
         "TOOLBOX_REPO": repos["toolbox"],
         "CI_TEMPLATE_SOURCE_DIR": repos["ciTemplates"],
     }

@@ -15,6 +15,7 @@ platform:
   repositories:
     cluster: ../cluster
     platform: ../platform-cicd
+    gitops: ../platform-gitops
     toolbox: ../toolbox
     ciTemplates: ../ci-templates
 
