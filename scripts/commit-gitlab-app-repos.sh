@@ -21,6 +21,7 @@ Repos cibles:
 Hypotheses:
   - Chaque repo cible est un sous-repertoire direct de DIR.
   - GitLab correspond au remote "gitlab".
+  - GitHub correspond au remote "origin".
   - Le push se fait sur la branche courante: HEAD:<branche>.
 USAGE
 }
@@ -104,6 +105,12 @@ for repo_name in $repos; do
     continue
   fi
 
+  if ! git -C "$repo" remote get-url origin >/dev/null 2>&1; then
+    echo "ERREUR: remote 'origin' absent dans $repo." >&2
+    failure=1
+    continue
+  fi
+
   if has_changes "$repo"; then
     echo "Commit des changements locaux."
     if ! run git -C "$repo" add -A; then
@@ -123,6 +130,12 @@ for repo_name in $repos; do
   echo "Push vers gitlab ($branch)."
   if ! run git -C "$repo" push gitlab "HEAD:$branch"; then
     echo "ERREUR: git push vers 'gitlab' a echoue dans $repo." >&2
+    failure=1
+  fi
+
+  echo "Push vers origin/GitHub ($branch)."
+  if ! run git -C "$repo" push origin "HEAD:$branch"; then
+    echo "ERREUR: git push vers 'origin' a echoue dans $repo." >&2
     failure=1
   fi
 done
