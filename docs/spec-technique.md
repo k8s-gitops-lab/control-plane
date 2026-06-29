@@ -151,13 +151,12 @@ sous-dossier) et le déploiement (plusieurs `kustomize edit set image`).
   MetalLB, Traefik et Gateway partagée) sont provisionnés par Ansible.
 
 Modifier `platform-gitops/argocd/apps.yaml` ou un fichier
-`platform-gitops/argocd/apps/*.yaml` nécessite ensuite
-`make argocd-apps-render` puis `git commit`/`git push` sur `origin main`
-dans `platform-gitops` : ArgoCD lit Git, pas le disque local — sans le push,
-le changement n'est jamais pris en compte. Pendant l'amorcage, certaines
-references ArgoCD peuvent pointer vers GitHub pour eviter une dependance
-circulaire avec GitLab ; les operations toolbox qui modifient l'inventaire
-GitOps ouvrent leurs branches et pull requests sur le depot source GitHub.
+`platform-gitops/argocd/apps/*.yaml` se fait via une pull request sur le dépôt
+GitHub `platform-gitops`. Au merge, un job CI de `platform-cicd` régénère
+automatiquement `argocd/managed/apps-appset.yaml` et commite le résultat sur
+`main` : ArgoCD lit Git, pas le disque local. Pendant l'amorçage, certaines
+références ArgoCD peuvent pointer vers GitHub pour éviter une dépendance
+circulaire avec GitLab.
 
 Voir aussi [`source-control.md`](./source-control.md) : GitHub est l'amont du
 code source et la cible de `PLATFORM_REPO_URL`, tandis que GitLab porte les
@@ -206,21 +205,14 @@ Pour une app standard, l'intégration attendue côté plateforme est :
    - `<app>-iac/` pour les manifests, avec le chemin k8s déclaré dans
      `manifests.path` et un `kustomization.yaml`.
 2. Ajouter l'app dans `platform-gitops/argocd/apps/<app>.yaml` (ou lancer `make init-project CODE_REPO=... IAC_REPO=...`).
-3. Régénérer l'ApplicationSet :
-   `make argocd-apps-render`.
-4. Commiter puis pousser `argocd/apps.yaml`, `argocd/apps/<app>.yaml` et
-   `argocd/managed/apps-appset.yaml` depuis `platform-gitops` sur `origin main`, afin que le root
-   Application ArgoCD voie le changement.
-5. Lancer `make gitlab-seed` pour créer ou mettre à jour les projets GitLab,
+3. Ouvrir une pull request sur le dépôt GitHub `platform-gitops`. Au merge,
+   le job CI de `platform-cicd` régénère `argocd/managed/apps-appset.yaml`
+   et le commite sur `main` — ArgoCD détecte le changement et converge.
+4. Lancer `make gitlab-seed` pour créer ou mettre à jour les projets GitLab,
    le `.gitlab-ci.yml` applicatif, les branches d'environnement du dépôt
    manifests, les variables CI/CD et les protections.
-6. Lancer `make argocd-repo-creds` si un nouveau dépôt manifests privé a été
+5. Lancer `make argocd-repo-creds` si un nouveau dépôt manifests privé a été
    ajouté, afin qu'ArgoCD puisse le lire.
-
-Le POC demande aujourd'hui ces commandes séparées pour rendre les étapes
-visibles. Une cible produit naturelle serait de regrouper les étapes 3, 5 et 6
-dans une cible dédiée (`make app-register` ou équivalent) une fois le schéma
-d'inventaire stabilisé.
 
 ## Outillage partagé
 
