@@ -127,15 +127,22 @@ for repo_name in $repos; do
     echo "Aucun changement local a committer."
   fi
 
+  echo "Pull rebase depuis gitlab ($branch)."
+  if ! run git -C "$repo" pull --rebase gitlab "$branch"; then
+    echo "ERREUR: git pull --rebase depuis 'gitlab' a echoue dans $repo." >&2
+    failure=1
+    continue
+  fi
+
   echo "Push vers gitlab ($branch)."
   if ! run git -C "$repo" push gitlab "HEAD:$branch"; then
     echo "ERREUR: git push vers 'gitlab' a echoue dans $repo." >&2
     failure=1
   fi
 
-  echo "Push vers origin/GitHub ($branch)."
-  if ! run git -C "$repo" push origin "HEAD:$branch"; then
-    echo "ERREUR: git push vers 'origin' a echoue dans $repo." >&2
+  echo "Push vers origin/GitHub ($branch) [force-with-lease]."
+  if ! run git -C "$repo" push --force-with-lease origin "HEAD:$branch"; then
+    echo "ERREUR: git push --force-with-lease vers 'origin' a echoue dans $repo." >&2
     failure=1
   fi
 done
