@@ -5,7 +5,7 @@ ENV = CONFIG="$(CONFIG)" python3 scripts/export-env.py > "$(ENV_FILE)" && . "$(E
 
 GHCR_NAMESPACES ?= helloworld-dev helloworld-rec helloworld-preprod helloworld
 
-.PHONY: help validate env vm-images-build vm-images-add vm-images cluster-up cluster-from-images platform-up platform-fast-up platform-bootstrap platform-down platform-destroy gitlab-seed argocd-repo-creds argocd-password gitlab-password status flux-github-credentials ghcr-pull-secret
+.PHONY: help validate env vm-images-build vm-images-add vm-images cluster-up cluster-from-images platform-up platform-fast-up platform-bootstrap platform-down platform-destroy gitlab-seed argocd-repo-creds argocd-password gitlab-password status ghcr-pull-secret
 
 help: ## Affiche cette aide
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-24s\033[0m %s\n", $$1, $$2}'
@@ -109,13 +109,6 @@ ghcr-pull-secret: ## Deploie secrets/ghcr-pull-secret.yaml (SOPS) dans chaque na
 	    sops --decrypt secrets/ghcr-pull-secret.yaml \
 	    | kubectl apply -n $$ns -f -; \
 	done
-
-flux-github-credentials: ## Decrypte le secret SOPS et cree github-credentials dans flux-system
-	@$(ENV); \
-	pat=$$(SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt \
-	  sops --decrypt --extract '["github_pat"]' secrets/github-credentials.yaml); \
-	echo "==> control-plane: flux-github-credentials -> make -C $$PLATFORM_REPO_ROOT flux-github-credentials"; \
-	$(MAKE_BIN) -C "$$PLATFORM_REPO_ROOT" flux-github-credentials GITHUB_PAT="$$pat"
 
 status: ## Affiche l'etat ArgoCD depuis ../platform-cicd
 	@$(ENV); echo "==> control-plane: status -> make -C $$PLATFORM_REPO_ROOT status"; $(MAKE_BIN) -C "$$PLATFORM_REPO_ROOT" status ARGOCD_NAMESPACE="$$ARGOCD_NAMESPACE"
