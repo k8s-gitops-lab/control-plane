@@ -5,7 +5,7 @@ ENV = CONFIG="$(CONFIG)" python3 scripts/export-env.py > "$(ENV_FILE)" && . "$(E
 
 GHCR_NAMESPACES ?= helloworld-dev helloworld-rec helloworld-preprod helloworld
 
-.PHONY: help validate env vm-images-build vm-images-add vm-images cluster-up cluster-from-images platform-up platform-fast-up platform-bootstrap platform-down platform-destroy gitlab-seed argocd-repo-creds argocd-password gitlab-password status ghcr-pull-secret
+.PHONY: help validate env vm-images-build vm-images-add vm-images cluster-up cluster-from-images platform-up platform-fast-up platform-bootstrap platform-down platform-destroy gitlab-seed argocd-repo-creds argocd-password gitlab-password status ghcr-pull-secret gitlab-git-creds
 
 help: ## Affiche cette aide
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-24s\033[0m %s\n", $$1, $$2}'
@@ -51,14 +51,27 @@ platform-up: vm-images cluster-from-images platform-bootstrap ## Construit les i
 
 platform-provision: cluster-from-images platform-bootstrap ## Construit les images, deploie le cluster et bootstrappe la plateforme
 
-platform-bootstrap: ## Bootstrap ArgoCD et la plateforme via ../platform-cicd
+platform-bootstrap: ## Bootstrap ArgoCD et la plateforme via ../platform-cicd, puis injecte les git credentials GitLab
 	@$(ENV); \
 	echo "==> control-plane: platform-bootstrap -> make -C $$PLATFORM_REPO_ROOT bootstrap"; \
 	$(MAKE_BIN) -C "$$PLATFORM_REPO_ROOT" bootstrap \
 	  ARGOCD_VERSION="$$ARGOCD_VERSION" \
 	  GITLAB_DOMAIN="$$GITLAB_DOMAIN" \
 	  GITLAB_NAMESPACE="$$GITLAB_NAMESPACE" \
-	  ARGOCD_NAMESPACE="$$ARGOCD_NAMESPACE"
+	  ARGOCD_NAMESPACE="$$ARGOCD_NAMESPACE"; \
+	echo "==> control-plane: gitlab-git-creds -> make -C $$TOOLBOX_REPO gitlab-git-creds"; \
+	$(MAKE_BIN) -C "$$TOOLBOX_REPO" gitlab-git-creds \
+	  GITLAB_DOMAIN="$$GITLAB_DOMAIN" \
+	  GITLAB_NAMESPACE="$$GITLAB_NAMESPACE" \
+	  INTERNAL_GITLAB_HOST="$$INTERNAL_GITLAB_HOST"
+
+gitlab-git-creds: ## Cree un PAT GitLab root et l'injecte dans git-credential pour l'URL interne cluster
+	@$(ENV); \
+	echo "==> control-plane: gitlab-git-creds -> make -C $$TOOLBOX_REPO gitlab-git-creds"; \
+	$(MAKE_BIN) -C "$$TOOLBOX_REPO" gitlab-git-creds \
+	  GITLAB_DOMAIN="$$GITLAB_DOMAIN" \
+	  GITLAB_NAMESPACE="$$GITLAB_NAMESPACE" \
+	  INTERNAL_GITLAB_HOST="$$INTERNAL_GITLAB_HOST"
 
 platform-down: ## Eteint les VMs de la plateforme sans les detruire
 	@$(ENV); \
