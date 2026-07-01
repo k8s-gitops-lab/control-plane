@@ -80,11 +80,11 @@ platform-bootstrap-from-%: ## Reprend le bootstrap plateforme depuis une etape p
 
 gitlab-git-creds: ## Cree un PAT GitLab root et l'injecte dans git-credential pour l'URL interne cluster
 	@$(ENV); \
-	echo "==> control-plane: gitlab-git-creds -> make -C $$TOOLBOX_REPO gitlab-git-creds"; \
-	$(MAKE_BIN) -C "$$TOOLBOX_REPO" gitlab-git-creds \
-	  GITLAB_DOMAIN="$$GITLAB_DOMAIN" \
+	echo "==> control-plane: gitlab-git-creds -> scripts/gitlab-git-creds.py"; \
+	GITLAB_URL="https://gitlab.$$GITLAB_DOMAIN" \
 	  GITLAB_NAMESPACE="$$GITLAB_NAMESPACE" \
-	  INTERNAL_GITLAB_HOST="$$INTERNAL_GITLAB_HOST"
+	  INTERNAL_GITLAB_HOST="$$INTERNAL_GITLAB_HOST" \
+	  python3 scripts/gitlab-git-creds.py
 
 platform-down: ## Eteint les VMs de la plateforme sans les detruire
 	@$(ENV); \
