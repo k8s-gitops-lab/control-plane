@@ -52,6 +52,10 @@ l'orchestration Ansible (playbook avec plusieurs tâches/rôles tagués,
 reste pour exposer un point d'entrée unique à l'opérateur (ex. `make
 bootstrap`), pas pour porter la logique de séquencement elle-même.
 
+**Images Packer** : le code déployé dans les images Packer (`cluster/packer`)
+doit passer par le `provisioner "ansible"` (réutilisant les rôles/playbooks
+existants), jamais par un `provisioner "shell"` ad hoc — cf. `cluster/AGENTS.md`.
+
 ## Workflow Git
 
 Ne jamais modifier les fichiers directement dans GitLab. Toujours :
