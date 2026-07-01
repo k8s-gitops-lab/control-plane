@@ -8,8 +8,6 @@ ENV = CONFIG="$(CONFIG)" python3 scripts/export-env.py > "$(ENV_FILE)" && . "$(E
 START_AT ?=
 STOP_AFTER ?=
 
-GHCR_NAMESPACES ?= helloworld-dev helloworld-rec helloworld-preprod helloworld
-
 .PHONY: help validate env vm-images-build vm-images-add vm-images cluster-up cluster-from-images platform-up platform-provision platform-bootstrap platform-bootstrap-from-% platform-bootstrap-status platform-bootstrap-reset platform-down platform-destroy gitlab-tf-credentials argocd-repo-creds argocd-password gitlab-password status ghcr-pull-secret gitlab-git-creds
 
 help: ## Affiche cette aide
@@ -125,15 +123,12 @@ gitlab-password: ## Affiche le mot de passe root initial de GitLab
 	$(MAKE_BIN) -C "$$PLATFORM_REPO_ROOT" gitlab-password \
 	  GITLAB_NAMESPACE="$$GITLAB_NAMESPACE"
 
-ghcr-pull-secret: ## Deploie secrets/ghcr-pull-secret.yaml (SOPS) dans chaque namespace applicatif
+ghcr-pull-secret: ## Deploie secrets/ghcr-pull-secret.yaml (SOPS) comme secret source dans argocd ; chaque app le recopie dans ses namespaces via sa conf ArgoCD (Jobs generes par render-argocd-apps.py)
 	@$(ENV); \
-	for ns in $(GHCR_NAMESPACES); do \
-	  echo "==> control-plane: ghcr-pull-secret dans $$ns"; \
-	  kubectl create namespace $$ns --dry-run=client -o yaml | kubectl apply -f -; \
-	  SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt \
-	    sops --decrypt secrets/ghcr-pull-secret.yaml \
-	    | kubectl apply -n $$ns -f -; \
-	done
+	echo "==> control-plane: ghcr-pull-secret dans $$ARGOCD_NAMESPACE"; \
+	SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt \
+	  sops --decrypt secrets/ghcr-pull-secret.yaml \
+	  | kubectl apply -n "$$ARGOCD_NAMESPACE" -f -
 
 status: ## Affiche l'etat ArgoCD depuis ../platform-cicd
 	@$(ENV); echo "==> control-plane: status -> make -C $$PLATFORM_REPO_ROOT status"; $(MAKE_BIN) -C "$$PLATFORM_REPO_ROOT" status ARGOCD_NAMESPACE="$$ARGOCD_NAMESPACE"
