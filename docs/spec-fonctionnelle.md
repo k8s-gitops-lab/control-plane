@@ -108,7 +108,7 @@ sous-dossier avec son propre `Dockerfile`.
   le cas single-service.
 
 **Statut : implémenté.** Détail de l'implémentation (`helloworld-svc`/
-`helloworld-gui`, schéma `platform-gitops/argocd/apps/<app>/app.yaml`,
+`helloworld-gui`, schéma `platform-gitops/argocd/apps/<app>.yaml`,
 Terraform `gitlab-projects-iac`, `ci-templates/gitlab-ci.yml`) dans la spec
 technique.
 
@@ -116,7 +116,7 @@ technique.
 
 Cf. "Objectif du scaling" dans le [PRD](./prd.md) pour le pourquoi. Le
 mécanisme (repo `ci-templates`, descriptors
-`platform-gitops/argocd/apps/<app>/app.yaml`, manifests ArgoCD générés et
+`platform-gitops/argocd/apps/<app>.yaml`, manifests ArgoCD générés et
 Terraform `gitlab-projects-iac`) est détaillé dans la spec technique.
 
 ### Parcours fonctionnel : ajouter une application
@@ -127,7 +127,7 @@ Le parcours cible pour une app standard est volontairement court :
    et un `Dockerfile` par service.
 2. Ajouter le dépôt local de manifests GitOps de l'app, avec les manifests
    Kubernetes et un `kustomization.yaml` sous le chemin déclaré.
-3. Ajouter un fichier `platform-gitops/argocd/apps/<app>/app.yaml` : nom de
+3. Ajouter un fichier `platform-gitops/argocd/apps/<app>.yaml` : nom de
    l'app, dépôt de code, dépôt manifests, services, images, environnements et
    option `hasPreprod`.
 4. Régénérer les Applications ArgoCD depuis l'inventaire.
