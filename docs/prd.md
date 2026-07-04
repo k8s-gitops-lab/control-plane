@@ -110,6 +110,6 @@ oublis, et pour identifier ce qui deviendrait nécessaire avec une vraie
   projet. Le réutiliser pour toutes les apps lors de l'"Industrialisation" maximiserait
   le rayon d'explosion en cas de fuite (logs CI mal masqués, runner
   compromis). Cible long terme : un **token de projet** (`project access
-  token`) par couple `<app>`/`<app>-manifests`, scopé au strict nécessaire.
+  token`) par couple `<app>`/`<app>-iac`, scopé au strict nécessaire.
   Acceptable de garder le token root partagé pour ce POC mono-app ; à
   traiter avant toute "Industrialisation" réelle avec plusieurs apps/équipes.

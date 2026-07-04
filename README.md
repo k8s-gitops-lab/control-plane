@@ -59,19 +59,38 @@ Pour le détail de chaque étape :
 ### Parcours 2 — Une équipe applicative crée un projet
 
 Prérequis : la plateforme est déjà en place (Parcours 1 déjà réalisé par
-l'opérateur).
+l'opérateur) et `make gitlab-git-creds` a été exécuté au moins une fois
+(credentials git stockées pour l'hôte GitLab interne).
 
 1. Écrire le code de l'app (`<app>/`) et son dépôt de manifests
    (`<app>-iac/`), en réutilisant `ci-templates` pour la CI (voir
    `helloworld`/`helloworld-iac` comme exemple de référence).
-2. Ouvrir une pull request directement sur `platform-gitops` ajoutant
-   `argocd/apps/<app>.yaml` (nom, description, services, `hasPreprod`).
-3. Au merge de cette PR, la chaîne se déclenche automatiquement : régénération
+2. Ouvrir une merge request directement sur le projet GitLab
+   `platform-gitops` ajoutant `argocd/apps/<app>.yaml` au format minimal :
+   `name`, `group`, `description`, `services`, `hasPreprod`. Tout le reste
+   (`repoURL`, namespaces, URLs, destinations ArgoCD) est dérivé par
+   convention par `toolbox/scripts/platform_inventory.py`.
+3. Au merge de cette MR, la chaîne se déclenche automatiquement : régénération
    des manifests ArgoCD (`ApplicationSet`/`AppProject`), régénération de
    l'inventaire Terraform (`apps.auto.tfvars.json`), création des projets
-   GitLab correspondants, puis synchronisation ArgoCD des environnements
-   déclarés.
-4. Les push suivants sur `<app>` suivent le pipeline `ci-templates` (build
+   GitLab correspondants (vides), puis synchronisation ArgoCD des
+   environnements déclarés. Aucune action manuelle requise à cette étape.
+4. Pousser le code initial vers les projets GitLab nouvellement créés — ils
+   sont créés vides, sauf pour une app historique déclarée
+   `importFromGithub: true` :
+   ```sh
+   git -C <app> remote add gitlab https://gitlab.192.168.33.100.nip.io/<group>/<app>.git
+   git -C <app> push gitlab main
+   git -C <app>-iac remote add gitlab https://gitlab.192.168.33.100.nip.io/<group>/<app>-iac.git
+   git -C <app>-iac push gitlab main
+   ```
+   (`<group>` est celui déclaré à l'étape 2.)
+5. Vérifier le résultat : le projet apparaît dans GitLab
+   (`https://gitlab.192.168.33.100.nip.io/<group>/`), les `Application`
+   ArgoCD correspondantes sont visibles et synchronisées (`make status` ou
+   l'UI ArgoCD), et le premier merge sur `<app>` déclenche le pipeline
+   `ci-templates` (build once, déploiement automatique vers `dev`).
+6. Les push suivants sur `<app>` suivent le pipeline `ci-templates` (build
    once, promotion dev → rec → preprod → prod par tag).
 
 Pour le détail de chaque étape : `toolbox/README.md` (scripts d'onboarding)

@@ -128,16 +128,26 @@ Le parcours cible pour une app standard est volontairement court :
    et un `Dockerfile` par service.
 2. Ajouter le dépôt local de manifests GitOps de l'app, avec les manifests
    Kubernetes et un `kustomization.yaml` sous le chemin déclaré.
-3. Ajouter un fichier `platform-gitops/argocd/apps/<app>.yaml` : nom de
-   l'app, groupe GitLab dédié (`group`, ex. `hello-groupe` pour `helloworld`
-   — top-level, indépendant de `infra`), dépôt de code, dépôt manifests,
-   services, images, environnements et option `hasPreprod`.
-4. Régénérer les Applications ArgoCD depuis l'inventaire.
-5. Exécuter Terraform `gitlab-projects-iac` pour créer ou mettre à jour les
-   projets, branches, variables CI/CD et protections nécessaires.
-6. Pousser le changement GitOps sur le dépôt source lu par ArgoCD.
+3. Ouvrir une merge request sur `platform-gitops` ajoutant un fichier
+   `platform-gitops/argocd/apps/<app>.yaml` au **format minimal** : `name`,
+   `group` (groupe GitLab dédié, ex. `hello-groupe` pour `helloworld` —
+   top-level, indépendant de `infra`), `description`, `services`,
+   `hasPreprod`. Tout le reste (`repoURL`, namespaces, URLs, destinations
+   ArgoCD, secrets) est dérivé par convention à la normalisation de
+   l'inventaire (`toolbox/scripts/platform_inventory.py`), avec possibilité
+   d'override explicite pour les cas avancés (ex. `importFromGithub: true`
+   pour une app historique dont le code préexiste sur GitHub).
+4. Au merge de cette MR, sans action manuelle supplémentaire : régénération
+   des Applications ArgoCD depuis l'inventaire, puis exécution du Terraform
+   `gitlab-projects-iac` qui crée ou met à jour les projets GitLab, branches,
+   variables CI/CD et protections nécessaires.
+5. Pousser le code initial vers les projets GitLab nouvellement créés (ils
+   sont créés vides, sauf `importFromGithub: true`) : c'est la seule étape
+   manuelle restante après le merge — détaillée dans
+   [`../README.md`](../README.md#parcours-2--une-équipe-applicative-crée-un-projet).
 
-À la fin de ce parcours, l'utilisateur doit obtenir sans action manuelle :
+À la fin de ce parcours, l'utilisateur doit obtenir sans action manuelle
+(hors le push initial de l'étape 5) :
 
 - un projet GitLab de code avec un `.gitlab-ci.yml` généré depuis le template
   partagé ;
@@ -146,8 +156,8 @@ Le parcours cible pour une app standard est volontairement court :
 - un déploiement automatique vers `dev` au prochain merge sur `main` ;
 - une chaîne de promotion release prête à être jouée depuis GitLab CI.
 
-Les champs redondants de l'inventaire (`repoURL`, namespaces, URLs,
-destinations ArgoCD, secrets) sont acceptés dans le POC pour garder la sécurité
-lisible explicitement. La cible produit reste de pouvoir dériver ces valeurs
-par convention pour réduire la saisie côté utilisateur, tout en conservant des
-overrides explicites pour les cas avancés.
+Le format minimal ci-dessus est celui réellement utilisé par les apps
+existantes (cf. `helloworld.yaml`) : les champs dérivables (`repoURL`,
+namespaces, URLs, destinations ArgoCD, secrets) ne sont plus saisis à la
+main, `toolbox/scripts/platform_inventory.py` les déduit par convention. Un
+override explicite reste possible pour les cas avancés.
