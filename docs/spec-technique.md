@@ -73,8 +73,9 @@ image`) : `ci-templates/docs/spec-technique.md` et
     La sortie est committée dans `argocd/managed/apps-appset.yaml` et synchronisée
     en continu par le root Application "app of apps" (`argocd/root-app.yaml`,
     cf. "Point d'entrée" dans AGENTS.md).
-  - **Terraform `gitlab-projects-iac`** : crée les dépôts `<app>`/`<app>-iac`,
-    configure les gates, les variables et les protections GitLab.
+  - **Terraform `gitlab-projects-iac`** : crée le groupe GitLab dédié de
+    l'app (`group`) et les dépôts `<app>`/`<app>-iac` dedans, configure les
+    gates, les variables et les protections GitLab.
 - **Add-ons plateforme sous ArgoCD** : le root Application synchronise aussi
   les `Application` déclarées dans `argocd/managed/` pour les composants de
   plateforme applicative : GitLab et exposition HTTP d'ArgoCD. Les images

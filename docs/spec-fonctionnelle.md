@@ -128,8 +128,9 @@ Le parcours cible pour une app standard est volontairement court :
 2. Ajouter le dépôt local de manifests GitOps de l'app, avec les manifests
    Kubernetes et un `kustomization.yaml` sous le chemin déclaré.
 3. Ajouter un fichier `platform-gitops/argocd/apps/<app>.yaml` : nom de
-   l'app, dépôt de code, dépôt manifests, services, images, environnements et
-   option `hasPreprod`.
+   l'app, groupe GitLab dédié (`group`, ex. `hello-groupe` pour `helloworld`
+   — top-level, indépendant de `infra`), dépôt de code, dépôt manifests,
+   services, images, environnements et option `hasPreprod`.
 4. Régénérer les Applications ArgoCD depuis l'inventaire.
 5. Exécuter Terraform `gitlab-projects-iac` pour créer ou mettre à jour les
    projets, branches, variables CI/CD et protections nécessaires.
