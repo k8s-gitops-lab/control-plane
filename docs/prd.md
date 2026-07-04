@@ -60,9 +60,9 @@ déployable sans duplication de pipeline.
 
 Critères d'acceptation du POC :
 
-- **Peu d'étapes** : après ajout des sources locales et du fichier
-  `argocd/apps/<app>.yaml`, une commande de seed/rendu doit suffire à préparer
-  GitLab et ArgoCD.
+- **Peu d'étapes** : après ajout des sources locales, le merge de la MR
+  ajoutant `argocd/apps/<app>.yaml` sur `platform-gitops` doit suffire à
+  préparer GitLab et ArgoCD (seed/rendu déclenchés automatiquement par la CI).
 - **Aucune création manuelle** dans GitLab, ArgoCD ou Kubernetes pour une app
   standard.
 - **Aucune logique CI dupliquée** dans les dépôts applicatifs : le

@@ -9,7 +9,7 @@ Une app qui suit le pattern à deux dépôts (`<app>` pour le code, `<app>-iac` 
 _Avoid_: App classique, app normale
 
 **Seed/rendu**:
-Deux étapes distinctes toujours enchaînées pour intégrer une nouvelle app : le seed GitLab (création/mise à jour des projets, protection de branches et miroirs GitHub, porté par le Terraform de `gitlab-projects-iac` — appliqué automatiquement par Flux à partir des variables générées par `toolbox`) et le rendu ArgoCD (génération de l'`ApplicationSet`/des manifests à partir de l'inventaire, porté par `platform-cicd`, ex. `render-argocd-apps.py`). Le PRD les nomme comme une seule "commande" par simplification narrative ; en pratique ce sont plusieurs commandes orchestrées ensemble (typiquement via une cible `make` côté `control-plane`).
+Deux étapes distinctes toujours enchaînées pour intégrer une nouvelle app : le seed GitLab (création/mise à jour des projets, protection de branches et miroirs GitHub, porté par le Terraform de `gitlab-projects-iac` — appliqué automatiquement par Flux à partir des variables générées par `toolbox`) et le rendu ArgoCD (génération de l'`ApplicationSet`/des manifests à partir de l'inventaire, porté par `platform-cicd`, ex. `render-argocd-apps.py`). Le PRD les présente comme une seule étape par simplification narrative ; en pratique ce sont plusieurs jobs orchestrés ensemble par le pipeline CI de `platform-gitops`, déclenché au merge de la MR d'inventaire.
 _Avoid_: Commande de seed, script d'intégration
 
 **Chemin de promotion uniforme**:

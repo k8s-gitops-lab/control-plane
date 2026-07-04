@@ -4,11 +4,15 @@ Ce POC assume un reseau local jetable. Les choix suivants sont acceptes pour
 reduire le cout de bootstrap, mais ne doivent pas devenir les valeurs par
 defaut d'un environnement partage ou durable.
 
-## HTTP interne
+## TLS auto-signe
 
-GitLab et ArgoCD sont exposes en HTTP sur `*.nip.io`. Pour une plateforme
-durable, remplacer par HTTPS, certificats geres et policy d'entree explicite.
-Les images applicatives sont poussees sur GHCR (HTTPS) : pas de registry
+GitLab et ArgoCD sont exposes en HTTPS sur `*.nip.io`, avec un certificat
+wildcard auto-signe termine par la Gateway Traefik (`nip-io-wildcard-tls`) —
+a accepter dans le navigateur, et a faire confiance explicitement dans les
+outils (scripts bootstrap `GITLAB_INSECURE_TLS=true`, trust store du job
+`semantic-release`). Pour une plateforme durable, remplacer par des
+certificats geres (cert-manager, PKI) et une policy d'entree explicite.
+Les images applicatives sont poussees sur GHCR (TLS public) : pas de registry
 interne au cluster a securiser.
 
 ## Comptes bootstrap

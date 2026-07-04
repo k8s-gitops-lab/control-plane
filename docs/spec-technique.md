@@ -7,8 +7,9 @@
 
 ## CI/CD : chaîne d'environnements (résumé)
 
-La chaîne "build once, promote everywhere" (tag `vX.Y.Z`, build immuable
-kaniko, promotion dev → rec → preprod → prod par `kustomize edit set image`,
+La chaîne "build once, promote everywhere" (tag `vX.Y.Z`, build kaniko au
+merge sur `main` puis retag `crane` à la release, promotion dev → rec →
+preprod → prod par mise à jour du `kustomization.yaml` du dépôt manifests,
 gates manuels + protected environment sur `deploy-prod`, self-heal ArgoCD,
 rollback par `git revert` sur le dépôt manifests) est implémentée et
 documentée en détail dans `ci-templates` (jobs, table d'activation par
@@ -27,7 +28,7 @@ Terraform). Ce document ne garde que ce qui concerne l'orchestration
 
 **Statut : implémenté**, illustré par `helloworld` (deux sous-dossiers
 `helloworld-svc`/`helloworld-gui`, un `Dockerfile` par service, `services:`
-listé dans `platform-gitops/argocd/apps/helloworld/app.yaml`). Détail du
+listé dans `platform-gitops/argocd/apps/helloworld.yaml`). Détail du
 mécanisme (boucle CI sur `${SERVICES}`, plusieurs `kustomize edit set
 image`) : `ci-templates/docs/spec-technique.md` et
 `helloworld/docs/spec-technique.md`.
@@ -61,18 +62,20 @@ image`) : `ci-templates/docs/spec-technique.md` et
   schéma "tout par convention" : la sécurité attendue est lisible directement
   dans l'inventaire, sans avoir à connaître le renderer. Consommé par deux
   mécanismes :
-  - un **`ApplicationSet` ArgoCD** (generator liste) qui génère
-    automatiquement, par app, les `Application` par couple app/environnement
-    **et un `AppProject` dédié** — les `sourceRepos` et `destinations` sont
-    recopiés depuis le fichier d'app, pas reconstruits implicitement.
-    Cloisonnement explicite : une app ne peut pas, même par erreur de
-    génération ou compromission, affecter les ressources d'une autre app. Plus
-    de fichier YAML à créer à la main par app. La génération est assurée par
-    `platform-cicd/scripts/render-argocd-apps.py` (cible `make argocd-apps-render`),
-    déclenchée automatiquement par un job CI au merge d'une PR sur `platform-gitops`.
-    La sortie est committée dans `argocd/managed/apps-appset.yaml` et synchronisée
-    en continu par le root Application "app of apps" (`argocd/root-app.yaml`,
-    cf. "Point d'entrée" dans AGENTS.md).
+  - le **rendu ArgoCD** : `platform-cicd/scripts/render-argocd-apps.py`
+    (cible `make argocd-apps-render`), déclenché automatiquement par un job
+    CI au merge d'une PR sur `platform-gitops`, génère par app un dossier
+    `argocd/generated/apps/<app>/` (un `AppProject` dédié, un
+    `ApplicationSet` qui produit les `Application` par environnement, les
+    credentials repo et les Jobs de copie de secrets) — les `sourceRepos` et
+    `destinations` sont recopiés depuis le fichier d'app, pas reconstruits
+    implicitement. Cloisonnement explicite : une app ne peut pas, même par
+    erreur de génération ou compromission, affecter les ressources d'une
+    autre app. Plus de fichier YAML à créer à la main par app. Un
+    `ApplicationSet` générique committé dans `argocd/managed/apps-appset.yaml`
+    (generator git par répertoire) découvre ces dossiers générés ; le tout
+    est synchronisé en continu par le root Application "app of apps"
+    (`argocd/root-app.yaml`).
   - **Terraform `gitlab-projects-iac`** : crée le groupe GitLab dédié de
     l'app (`group`) et les dépôts `<app>`/`<app>-iac` dedans, configure les
     gates, les variables et les protections GitLab.
@@ -85,9 +88,9 @@ image`) : `ci-templates/docs/spec-technique.md` et
   Ansible.
 
 Modifier un fichier `platform-gitops/argocd/apps/<app>.yaml` se fait via une pull request sur le dépôt
-GitHub `platform-gitops`. Au merge, un job CI de `platform-cicd` régénère
-automatiquement `argocd/managed/apps-appset.yaml` et commite le résultat sur
-`main` : ArgoCD lit Git, pas le disque local. Pendant l'amorçage, certaines
+`platform-gitops`. Au merge, le pipeline CI de `platform-gitops` régénère
+automatiquement `argocd/generated/apps/<app>/` et `argocd/managed/apps-appset.yaml`
+et commite le résultat sur `main` : ArgoCD lit Git, pas le disque local. Pendant l'amorçage, certaines
 références ArgoCD peuvent pointer vers GitHub pour éviter une dépendance
 circulaire avec GitLab.
 
@@ -170,9 +173,6 @@ Dette active hors chaîne CI/CD applicative :
   désormais le cluster local du POC. Avant de le considérer reproductible sur
   une autre machine, il faut supprimer les chemins propres à l'environnement
   local dans l'inventaire et les variables.
-- **Version du chart Traefik** : `traefik_chart_version` est encore vide dans
-  Ansible, ce qui suit la dernière version disponible du chart. À remplacer par
-  une version chart précise après validation.
 - **Migration des manifests applicatifs vers `HTTPRoute`** : les apps doivent
   converger vers des `HTTPRoute` au lieu d'`Ingress`; la phase transitoire doit
   rester courte et explicite.
@@ -182,10 +182,12 @@ Dette active hors chaîne CI/CD applicative :
 - Cluster mono-nœud arm64 (Apple Silicon) : toute image dépendant de
   l'architecture (ex. `helper_image` du GitLab Runner) doit être épinglée en
   `arm64` explicitement.
-- Pas de TLS/cert-manager sur ce cluster local : `global.hosts.https: false`
-  est requis dans les values du chart GitLab, sinon les cookies de session
-  sont marqués `Secure` et ne peuvent jamais être renvoyés en HTTP (boucle de
-  402/422 CSRF au login).
+- Pas de cert-manager sur ce cluster local : le TLS est terminé par la
+  Gateway Traefik avec un certificat wildcard auto-signé
+  (`nip-io-wildcard-tls`). Le chart GitLab doit garder
+  `global.hosts.https: true` pour annoncer son URL publique en HTTPS (OAuth,
+  callbacks, cookies de session), même si les pods GitLab servent en HTTP
+  derrière la Gateway.
 - Vagrant publie l'adresse MetalLB exposée par Traefik vers l'hôte
   (`cluster-up` ou `cluster-from-images` dans le `Makefile`) : tout accès UI
   doit passer par le

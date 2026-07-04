@@ -21,20 +21,19 @@ manifests côté GitOps.
   dev→main" d'un éventuel modèle à deux branches).
 - **Chaque merge dans `main`** déclenche un build mutable et un déploiement
   automatique vers l'environnement `dev` (premier environnement, continu).
-- **Démarrage d'une release** : un job CI (`semantic-release`), déclenché
-  manuellement (ex. "Run pipeline" sur `main`), analyse les Conventional
-  Commits (`feat:`/`fix:`/`refactor:`/...) accumulés depuis le dernier tag et
-  en déduit automatiquement le numéro de version — plus de variable
-  `VERSION` choisie à la main. Le job pousse directement le tag `vX.Y.Z` sur
-  `main` (plus de branche `release/vX.Y.Z` intermédiaire) et crée la Release
-  GitLab correspondante (notes générées depuis les commits). Codifié en CI
-  (pas de commande git manuelle), mais toujours déclenché par une décision
-  humaine délibérée : seul le *numéro* de version est automatique, pas le
-  *moment* de la release. À partir de là, `main` continue d'avancer
-  librement avec de nouvelles features — **aucun gel, aucun blocage des
-  devs**. Un commit qui ne porte aucun type Conventional Commits reconnu
-  (ex. `wip`) ne déclenche aucun bump de version : le job se termine sans
-  rien publier.
+- **Démarrage d'une release** : un job CI (`semantic-release`), exécuté
+  automatiquement à chaque pipeline de `main` (après `deploy-dev`), analyse
+  les Conventional Commits (`feat:`/`fix:`/`refactor:`/...) accumulés depuis
+  le dernier tag et en déduit automatiquement le numéro de version — plus de
+  variable `VERSION` choisie à la main. Le job pousse directement le tag
+  `vX.Y.Z` sur `main` (plus de branche `release/vX.Y.Z` intermédiaire) et
+  crée la Release GitLab correspondante (notes générées depuis les commits).
+  Le *moment* de la release découle donc du contenu mergé : un merge portant
+  au moins un commit de type release-worthy (`feat:`, `fix:`, ...) coupe une
+  version ; un commit sans type reconnu (ex. `wip`) ne déclenche aucun bump
+  et le job se termine sans rien publier. À partir de là, `main` continue
+  d'avancer librement avec de nouvelles features — **aucun gel, aucun
+  blocage des devs**.
 - **Bug détecté pendant la validation** (rec, préprod) ou **en prod** (après
   que `deploy-prod` a tourné) : un seul chemin, sans distinction — pas de
   hotfix séparé, délibérément, pour ne pas introduire une deuxième voie de
@@ -53,12 +52,14 @@ manifests côté GitOps.
 
 ## CI/CD : principe de la chaîne d'environnements
 
-Principe directeur : **build once, promote everywhere**, au sens littéral —
-**un seul tag `vX.Y.Z`** du début à la fin de la chaîne, **une seule image**
-construite (au stade rec), simplement référencée (même tag) dans les
-manifestes des stades suivants. Aucune opération registry de re-tag, pas de
-`skopeo` : promouvoir un service inchangé d'un stade à l'autre, c'est juste
-recopier la même référence d'image dans le manifeste suivant.
+Principe directeur : **build once, promote everywhere** — **un seul tag
+`vX.Y.Z`** du début à la fin de la chaîne, **une seule image** construite
+(au merge sur `main`, tags `<sha-court>` et `dev`). Au démarrage de la
+release, `build-rec` ne reconstruit rien : il retague l'image `<sha-court>`
+existante en `vX.Y.Z` (copie registry via `crane`, même digest). Ensuite,
+promouvoir un service d'un stade à l'autre, c'est juste recopier la même
+référence d'image dans le manifeste suivant — aucun rebuild, aucune autre
+opération registry.
 
 Chaque app déclare un drapeau `HAS_PREPROD` (true/false) qui active ou non
 le stade intermédiaire `preprod` — les deux variantes partagent le même
@@ -83,13 +84,13 @@ sous-dossier avec son propre `Dockerfile`.
 - **Versioning au niveau app** : un seul tag `vX.Y.Z` déclenche le build/la
   promotion de la chaîne pour tous les services de l'app ensemble (pas de
   tags indépendants par service).
-- **Pas de build sélectif : tous les modules du repo sont buildés à la
-  création de la release**, que leur contenu ait changé ou non. Chaque
-  service obtient directement une image taguée `<service>:vX.Y.Z` — le tag
-  de release est donc aussi, littéralement, le tag d'image de chaque
-  service (pas de hash de contenu, pas de label séparé : inutile puisque
-  tous les services sont rebuildés ensemble, donc toujours cohérents entre
-  eux sous le même tag).
+- **Pas de build sélectif : tous les modules du repo sont buildés à chaque
+  merge sur `main`**, que leur contenu ait changé ou non, puis tous
+  retagués ensemble à la release. Chaque service obtient une image taguée
+  `<service>:vX.Y.Z` — le tag de release est donc aussi, littéralement, le
+  tag d'image de chaque service (pas de hash de contenu, pas de label
+  séparé : inutile puisque tous les services sont buildés ensemble, donc
+  toujours cohérents entre eux sous le même tag).
   - **Pourquoi pas de build sélectif** : ça évite les deux problèmes
     identifiés avec une approche "ne builder que ce qui a changé" — A)
     incohérence de version entre services (certains restent sur un ancien
@@ -102,10 +103,10 @@ sous-dossier avec son propre `Dockerfile`.
 - **À chaque étape de la chaîne** (rec → préprod → prod), le job CI/CD met à
   jour les fichiers manifestes via Kustomize — un déploiement par service,
   chacun mis à jour pour référencer `<service>:vX.Y.Z`. Cohérent avec
-  "build once, promote everywhere" : un seul build (à rec, pour tous les
-  services), puis simple recopie de la même référence d'image dans le
-  manifeste de chaque stade suivant — aucune opération registry, comme pour
-  le cas single-service.
+  "build once, promote everywhere" : un seul build (pour tous les services),
+  un seul retag à la release, puis simple recopie de la même référence
+  d'image dans le manifeste de chaque stade suivant — comme pour le cas
+  single-service.
 
 **Statut : implémenté.** Détail de l'implémentation (`helloworld-svc`/
 `helloworld-gui`, schéma `platform-gitops/argocd/apps/<app>.yaml`,

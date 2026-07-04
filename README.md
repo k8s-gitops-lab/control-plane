@@ -124,14 +124,6 @@ make platform-bootstrap START_AT=gitlab-tf-credentials
 make platform-bootstrap-from-gitlab-tf-credentials
 ```
 
-Le chemin historique sans images Packer reste disponible :
-
-```sh
-make cluster-up
-make platform-bootstrap
-make gitlab-tf-credentials
-```
-
 `platform.yml` est un profil operateur local, pas la source de verite des
 projets. Toute valeur necessaire a l'autonomie d'un repo doit rester declaree
 dans ce repo, puis peut etre surchargee ici pour orchestrer le POC complet.
