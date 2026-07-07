@@ -8,7 +8,7 @@ ENV = CONFIG="$(CONFIG)" python3 scripts/export-env.py > "$(ENV_FILE)" && . "$(E
 START_AT ?=
 STOP_AFTER ?=
 
-.PHONY: help validate env vm-images-build vm-images-add vm-images cluster-up cluster-from-images platform-up platform-provision platform-bootstrap platform-bootstrap-status platform-bootstrap-reset platform-down platform-destroy gitlab-tf-credentials argocd-repo-creds argocd-password gitlab-password status ghcr-token-init ghcr-pull-secret gitlab-git-creds
+.PHONY: help validate env vm-images-build vm-images-add vm-images cluster-up cluster-from-images platform-up platform-provision platform-bootstrap platform-bootstrap-status platform-bootstrap-reset platform-down platform-destroy platform-verify gitlab-tf-credentials argocd-repo-creds argocd-password gitlab-password status ghcr-token-init ghcr-pull-secret gitlab-git-creds
 
 help: ## Affiche cette aide
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-24s\033[0m %s\n", $$1, $$2}'
@@ -44,7 +44,7 @@ cluster-from-images: vm-images-add ## Deploie le cluster depuis les boxes Packer
 	echo "==> control-plane: cluster-from-images -> make -C $$INFRASTRUCTURE_REPO create-cluster"; \
 	$(MAKE_BIN) -C "$$INFRASTRUCTURE_REPO" create-cluster
 
-platform-up: ## Sequence complete (images, cluster, bootstrap, git-creds), reprise automatique en cas d'echec
+platform-up: ## Sequence complete (images, cluster, bootstrap, git-creds, verify), reprise automatique et re-verification des etapes deja faites
 	python3 scripts/bootstrap.py --config "$(CONFIG)" --make "$(MAKE_BIN)"
 
 platform-provision: ## Comme platform-up mais sans reconstruire les images VM
@@ -67,7 +67,11 @@ platform-bootstrap: ## Bootstrap ArgoCD et la plateforme via ../platform-cicd, r
 	  START_AT="$(START_AT)" \
 	  STOP_AFTER="$(STOP_AFTER)"
 
-gitlab-git-creds: ## Cree un PAT GitLab root et l'injecte dans git-credential pour l'URL interne cluster
+platform-verify: ## Smoke test de bout en bout : cluster, GitLab, ArgoCD Synced/Healthy, secret GHCR, PAT, projets et pipelines des apps
+	@echo "==> control-plane: platform-verify -> scripts/platform-verify.py"; \
+	CONFIG="$(CONFIG)" python3 scripts/platform-verify.py
+
+gitlab-git-creds: ## Verifie le PAT GitLab root stocke dans git-credential, le (re)cree si absent/invalide/proche expiration
 	@$(ENV); \
 	echo "==> control-plane: gitlab-git-creds -> scripts/gitlab-git-creds.py"; \
 	GITLAB_URL="https://gitlab.$$GITLAB_DOMAIN" \

@@ -49,13 +49,19 @@ make platform-up
 ```
 
 Cette unique commande construit tout depuis zéro : images VM Packer, cluster
-Kubernetes, puis bootstrap plateforme (ArgoCD, GitLab, secret GHCR, runner).
-Elle est idempotente et reprend automatiquement à l'étape utile en cas
-d'échec (voir "Usage" ci-dessous pour le détail des 5 étapes et les reprises
-manuelles).
+Kubernetes, puis bootstrap plateforme (ArgoCD, GitLab, secret GHCR, runner),
+et se termine par un smoke test de bout en bout. Elle est idempotente : en
+cas d'échec elle reprend automatiquement à l'étape utile, et à chaque
+relance elle re-vérifie que les étapes déjà faites sont toujours vraies
+(boxes présentes, cluster joignable, secret en place, PAT valide) avant de
+les sauter — c'est une commande de réconciliation, pas seulement de reprise
+(voir "Usage" ci-dessous pour le détail des étapes).
 
 Une fois la commande terminée :
 
+- `make platform-verify` : rejoue le smoke test à tout moment (cluster,
+  GitLab, Applications ArgoCD Synced/Healthy, secret GHCR, PAT, projets et
+  pipelines des apps de l'inventaire).
 - `make status` : état de synchronisation ArgoCD.
 - `make argocd-password` / `make gitlab-password` : récupérer les mots de
   passe admin initiaux.
@@ -116,7 +122,8 @@ make platform-up
 ```
 
 Cette commande enchaine, avec reprise automatique en cas d'échec
-(`.bootstrap-state.json`) :
+(`.bootstrap-state.json`, durées par étape incluses — `make
+platform-bootstrap-status` pour les consulter) :
 
 - `make vm-images` : construit puis enregistre les boxes Vagrant `k8s-master`
   et `k8s-worker`.
@@ -128,8 +135,17 @@ Cette commande enchaine, avec reprise automatique en cas d'échec
 - `make ghcr-pull-secret` : depose le secret GHCR source dans le namespace
   `argocd` ; chaque app le recopie ensuite dans ses namespaces via un Job
   genere par `render-argocd-apps.py` a la creation de ses namespaces.
-- `make gitlab-git-creds` : cree un PAT GitLab root et l'injecte dans
-  `git-credential` pour l'URL interne du cluster.
+- `make gitlab-git-creds` : verifie le PAT GitLab root stocke dans
+  `git-credential` pour l'URL interne du cluster, et ne le (re)cree que s'il
+  est absent, invalide ou a moins de 30 jours d'expiration
+  (`--rotate` pour forcer la rotation).
+- `make platform-verify` : smoke test final de bout en bout.
+
+Avant de sauter une étape marquée terminée, `bootstrap.py` rejoue son check
+de convergence (`scripts/platform_checks.py`) ; une étape dont l'état ne
+tient plus (VM détruite, secret supprimé, PAT révoqué…) redevient le point
+de reprise. `--no-verify` désactive cette re-vérification. Un récapitulatif
+des durées par étape est affiché en fin de séquence.
 
 Les etapes restent executables separement :
 
@@ -140,6 +156,7 @@ make cluster-from-images
 make platform-bootstrap
 make ghcr-pull-secret
 make gitlab-git-creds
+make platform-verify
 ```
 
 Pour rejouer uniquement la séquence complète avec reprise automatique :
