@@ -6,10 +6,11 @@
 > implémenté **dans son repo propriétaire**, jamais depuis `cockpit`
 > (cf. `AGENTS.md`). L'état actuel ci-dessous a été vérifié sur le code —
 > plusieurs axes sont déjà partiellement en place. Les fiches de tâches
-> détaillées (`docs/tasks-extensibilite.md`) ont été supprimées le
-> 2026-07-08 car redondantes avec ce fichier ; les points clés (pièges,
-> critères de vérification) ont été repliés dans les sections par axe
-> ci-dessous.
+> détaillées (`docs/tasks-extensibilite.md`) et le pense-bête `TODO.txt` ont
+> été supprimés le 2026-07-08 car redondants avec ce fichier ; les points
+> clés (pièges, critères de vérification, dette transverse) ont été repliés
+> dans les sections ci-dessous. Ce fichier est désormais l'unique support de
+> suivi de l'initiative.
 
 ## Tableau de suivi
 
@@ -177,3 +178,15 @@ Repo `app-template` (cookiecutter via `toolbox`) générant `<app>` +
 l'onboarding à une commande + une MR et garantir que les nouvelles apps
 naissent conformes au pattern. **À traiter un autre jour** (décision
 2026-07-08).
+
+---
+
+## Dette transverse
+
+- [ ] Repousser tous les commits en attente vers le remote `gitlab`
+  (injoignable depuis l'environnement le 2026-07-08 ; commits déjà poussés
+  sur `origin`, cf. règle GitHub-fait-foi du `CLAUDE.md`).
+
+(Les autres points de dette relevés — dérivation de `_normalize_app` depuis
+le JSON Schema, `gitlab_group_variable DOMAIN` manquante — sont déjà suivis
+respectivement dans les sections Axe 1 et Axe 2 ci-dessus.)
