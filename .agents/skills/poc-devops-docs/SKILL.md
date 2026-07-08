@@ -1,6 +1,6 @@
 ---
 name: poc-devops-docs
-description: 'Conventions for writing and maintaining documentation across the poc-devops multi-repo workspace (README.md, AGENTS.md, docs/{prd,spec-fonctionnelle,spec-technique}.md). Use when creating or updating documentation in any poc-devops repo, auditing docs for staleness/redundancy, or deciding what belongs in which file.'
+description: 'Conventions for writing and maintaining documentation across the poc-devops multi-repo workspace (README.md, AGENTS.md, CONTEXT.md, docs/{prd,spec-fonctionnelle,spec-technique}.md). Use when creating or updating documentation in any poc-devops repo, auditing docs for staleness/redundancy, or deciding what belongs in which file.'
 ---
 
 # Documentation poc-devops
@@ -8,17 +8,32 @@ description: 'Conventions for writing and maintaining documentation across the p
 Conventions extraites de l'usage reel dans les repos du workspace
 (`control-plane`, `infrastructure`, `platform-cicd`, `platform-gitops`,
 `gitlab-projects-iac`, `ci-templates`, `helloworld`, `helloworld-iac`,
-`toolbox`). Pour des conseils de redaction generiques (Diataxis), voir le
-skill `documentation-writer` ; ce skill-ci porte les regles specifiques a ce
+`toolbox`), verifiees en dernier @ control-plane f040e3e (2026-07-07).
+Pour des conseils de redaction generiques (Diataxis), voir le skill
+`documentation-writer` ; ce skill-ci porte les regles specifiques a ce
 workspace.
 
 ## Quand l'utiliser
 
-- Ecrire ou mettre a jour un `README.md`, `AGENTS.md` ou `docs/*.md` dans un
-  repo du workspace.
+- Ecrire ou mettre a jour un `README.md`, `AGENTS.md`, `CONTEXT.md` ou
+  `docs/*.md` dans un repo du workspace.
 - Auditer la documentation existante pour detecter une derive (doc qui ne
   correspond plus au code), de la redondance ou du hors-scope.
 - Decider dans quel fichier une information doit vivre.
+
+## Audit outille
+
+Lancer d'abord le script du skill, puis traiter ses signalements :
+
+```bash
+scripts/audit-docs.sh [racine-du-workspace]   # defaut : ../..
+```
+
+Il verifie, pour chaque repo du workspace : la presence du layout attendu,
+les liens relatifs morts (intra- et inter-repos) dans les `.md`, et les
+references a des cibles Make inexistantes. Le script signale, l'humain
+tranche : une absence de `prd.md` peut etre un choix assume (cf. note
+ci-dessous).
 
 ## Structure documentaire par repo
 
@@ -28,9 +43,15 @@ Chaque repo suit le meme layout ; ne pas en inventer un autre.
 |---|---|---|
 | `README.md` | Point d'entree humain : ce que fait le repo, usage, liens vers le reste | Nouvel arrivant, operateur |
 | `AGENTS.md` | Regles actionnables pour un agent/operateur : commandes, fichiers cles, ce qu'il ne faut pas faire | Agent IA, mainteneur |
+| `CONTEXT.md` | Vocabulaire du domaine (ubiquitous language) : termes, definitions, formulations a eviter | Agent IA, redacteur |
 | `docs/prd.md` | Vision, perimetre, non-objectifs, criteres d'acceptation | Le "pourquoi" |
 | `docs/spec-fonctionnelle.md` | Regles de comportement : flow, contrats, ce qui se passe et quand | Le "quoi" |
 | `docs/spec-technique.md` | Detail d'implementation : fichiers, scripts, contraintes infra | Le "comment" |
+
+Etat reel verifie : tous les repos ont `AGENTS.md` et les deux `spec-*.md` ;
+`gitlab-projects-iac` n'a pas de `docs/prd.md` (sa vision est portee par le
+PRD de `platform-gitops`). `CONTEXT.md` n'existe aujourd'hui que dans
+`control-plane`. Ne pas "corriger" ces ecarts sans decision explicite.
 
 `control-plane` est le point d'entree du workspace : `docs/repo-map.md` y
 liste le role de chaque repo, et `README.md` y porte les parcours
@@ -98,6 +119,7 @@ Avant d'ecrire qu'une commande, un script ou un fichier existe :
 
 ### A faire
 
+- Lancer `scripts/audit-docs.sh` avant et apres une passe de doc.
 - Verifier chaque affirmation factuelle sur le code avant de l'ecrire.
 - Renvoyer vers le repo/fichier qui possede le detail plutot que de le
   recopier.

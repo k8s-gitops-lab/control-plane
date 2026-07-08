@@ -14,9 +14,10 @@ help: ## Affiche cette aide
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-24s\033[0m %s\n", $$1, $$2}'
 
 
-validate: ## Verifie platform.yml et compile les scripts Python
+validate: ## Verifie platform.yml, compile les scripts Python et valide les skills
 	@python3 -m py_compile scripts/*.py && echo "OK: scripts Python"
 	@CONFIG="$(CONFIG)" python3 scripts/export-env.py > /dev/null && echo "OK: platform.yml valide"
+	@python3 scripts/validate-skills.py
 
 env: ## Affiche les variables exportees depuis platform.yml
 	@CONFIG="$(CONFIG)" python3 scripts/export-env.py
