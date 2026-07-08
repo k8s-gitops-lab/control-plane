@@ -186,9 +186,14 @@ Dette active hors chaîne CI/CD applicative :
 - Cluster mono-nœud arm64 (Apple Silicon) : toute image dépendant de
   l'architecture (ex. `helper_image` du GitLab Runner) doit être épinglée en
   `arm64` explicitement.
-- Pas de cert-manager sur ce cluster local : le TLS est terminé par la
-  Gateway Traefik avec un certificat wildcard auto-signé
-  (`nip-io-wildcard-tls`). Le chart GitLab doit garder
+- Le TLS est terminé par la Gateway Traefik avec un certificat wildcard
+  (`nip-io-wildcard-tls`) émis et renouvelé par cert-manager, installé par le
+  rôle Ansible `kubernetes-platform` (add-on cluster bas niveau, pas un
+  Application ArgoCD). L'émetteur est une CA interne auto-signée
+  (`ClusterIssuer` `poc-lab-ca-issuer`), bootstrapée depuis un `Issuer`
+  self-signed le temps de créer le secret de la CA (`poc-lab-ca`) : pas de
+  Let's Encrypt/ACME possible ici, faute de domaine public et d'exposition
+  Internet (IP privée + noms `nip.io`). Le chart GitLab doit garder
   `global.hosts.https: true` pour annoncer son URL publique en HTTPS (OAuth,
   callbacks, cookies de session), même si les pods GitLab servent en HTTP
   derrière la Gateway.

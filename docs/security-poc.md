@@ -7,11 +7,14 @@ defaut d'un environnement partage ou durable.
 ## TLS auto-signe
 
 GitLab et ArgoCD sont exposes en HTTPS sur `*.nip.io`, avec un certificat
-wildcard auto-signe termine par la Gateway Traefik (`nip-io-wildcard-tls`) —
-a accepter dans le navigateur, et a faire confiance explicitement dans les
-outils (scripts bootstrap `GITLAB_INSECURE_TLS=true`, trust store du job
-`semantic-release`). Pour une plateforme durable, remplacer par des
-certificats geres (cert-manager, PKI) et une policy d'entree explicite.
+wildcard termine par la Gateway Traefik (`nip-io-wildcard-tls`), emis et
+renouvele par cert-manager depuis une CA interne auto-signee (`ClusterIssuer`
+`poc-lab-ca-issuer`) — le cycle de vie du certificat est gere, mais la CA
+reste auto-signee : le certificat est toujours a accepter dans le navigateur,
+et a faire confiance explicitement dans les outils (scripts bootstrap
+`GITLAB_INSECURE_TLS=true`, trust store du job `semantic-release`). Pour une
+plateforme durable, brancher le `ClusterIssuer` sur une PKI d'entreprise ou
+un emetteur ACME public et une policy d'entree explicite.
 Les images applicatives sont poussees sur GHCR (TLS public) : pas de registry
 interne au cluster a securiser.
 

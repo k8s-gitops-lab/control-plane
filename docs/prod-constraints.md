@@ -19,7 +19,9 @@ more realistic production setup.
 
 - Use real TLS everywhere: GitLab, ArgoCD, gateways and application
   endpoints (GHCR, the external image registry, already enforces TLS).
-- Integrate cert-manager or enterprise PKI.
+- cert-manager is integrated (self-signed internal CA issuing the shared
+  Gateway wildcard certificate). For production, swap the self-signed
+  `ClusterIssuer` for a real ACME (Let's Encrypt) or enterprise PKI issuer.
 - Use SSO/OIDC for ArgoCD and GitLab.
 - Avoid shared admin/root users for normal operations.
 - Enforce RBAC by team, application and environment.
@@ -92,7 +94,8 @@ more realistic production setup.
 
 ## Current POC Gaps
 
-- No real TLS.
+- TLS is issued by cert-manager but from a self-signed internal CA, not a
+  publicly trusted certificate.
 - Root/admin token usage is still central to the workflow.
 - Branch protection is acceptable for a mono-operator POC but too weak for a
   real team.
