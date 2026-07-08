@@ -43,15 +43,24 @@ Les fleches en pointilles marquent des dependances de deploiement/runtime
 (ArgoCD, orchestration cockpit), les fleches pleines des dependances de
 contenu (donnees, code, pipeline).
 
-Deux paires de repos ont une dependance dans les deux sens : ce n'est pas une
-erreur mais un bootstrap circulaire assume (`platform-bootstrap` ne peut pas
-s'auto-amorcer, cf. commentaire dans `argocd/root-app.yaml`) :
-- `gitlab-projects-iac` <-> `platform-gitops` : le CR Flux tf-controller qui
-  declenche le Terraform vit dans `platform-gitops`, mais ce meme Terraform
-  cree le projet GitLab de `platform-gitops` lui-meme.
-- `platform-bootstrap` <-> `platform-gitops` : `root-app.yaml` pointe en dur
-  vers le repo `platform-gitops`, qui a l'inverse a besoin d'ArgoCD (installe
-  par `platform-bootstrap`) pour etre synchronise.
+`platform-bootstrap` ne referencait plus recemment que le contenu de
+`platform-gitops` via une valeur figee dans `argocd/root-app.yaml`
+(`repoURL`). C'etait un couplage accidentel sans raison fonctionnelle :
+`repoURL` est desormais une variable ansible (`gitops_repo_url`, template
+`ansible.builtin.template`), donc cette arete a disparu du graphe.
+
+Il reste une paire de repos avec une dependance dans les deux sens :
+`gitlab-projects-iac` <-> `platform-gitops`. Ce n'est pas une dette a
+corriger : le trigger cote `platform-gitops`
+(`argocd/platform/tf-controller/`) est un enchainement a 3 etages sequence
+par sync-wave ArgoCD (secrets SOPS dechiffres, puis source Git, puis le CR
+Terraform), et ce trigger ne depend jamais du pipeline GitLab CI de
+`platform-gitops` (l'autre sens de l'arete) pour s'executer — ce dernier
+n'est qu'une regeneration automatique de confort, pas un prealable. Le
+bootstrap converge donc en un seul passage (`make platform-up` est
+idempotent et auto-reparant) : ce n'est pas un deadlock, juste un graphe
+statique qui affiche a la fois le chemin critique et une dependance de
+confort entre les deux memes repos.
 
 ```mermaid
 flowchart RL
@@ -68,14 +77,13 @@ flowchart RL
 
     platform_bootstrap -->|"requiert un cluster K8s"| infra_iac
     platform_gitops -.->|"necessite ArgoCD installe"| platform_bootstrap
-    platform_bootstrap -->|"repoURL fige dans root-app.yaml"| platform_gitops
     toolbox -->|"lit l'inventaire de"| platform_gitops
-    gitlab_projects_iac -.->|"applique par le Flux CR tf-controller de"| platform_gitops
+    gitlab_projects_iac -.->|"chemin critique : CR tf-controller (sync-wave 1-3) de"| platform_gitops
     gitlab_projects_iac -->|"consomme apps.auto.tfvars.json de"| toolbox
     ci_templates -->|"projet GitLab cree/mirrore par"| gitlab_projects_iac
     helloworld -->|"projet GitLab cree/mirrore par"| gitlab_projects_iac
     helloworld_iac -->|"projet GitLab cree/mirrore par"| gitlab_projects_iac
-    platform_gitops -->|"projet GitLab cree/mirrore par"| gitlab_projects_iac
+    platform_gitops -.->|"confort : pipeline CI de regeneration heberge par"| gitlab_projects_iac
     helloworld -->|"consomme le pipeline de"| ci_templates
     helloworld_iac -->|"manifests mis a jour par le pipeline de"| helloworld
     helloworld_iac -.->|"deploye par ArgoCD depuis"| platform_gitops
