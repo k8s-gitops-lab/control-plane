@@ -1,4 +1,4 @@
-# control-plane
+# cockpit
 
 Point d'entree operateur optionnel du POC.
 
@@ -7,11 +7,11 @@ dependance d'execution pour eux. Chaque projet reste autonome : ses Makefiles,
 valeurs par defaut et procedures doivent continuer a fonctionner depuis son
 propre repo.
 
-`control-plane` fournit seulement un profil local pour enchaîner les commandes
+`cockpit` fournit seulement un profil local pour enchaîner les commandes
 des repos specialises avec des variables explicites :
 
-- `infrastructure` : socle Kubernetes, storage, Gateway API, MetalLB, Traefik.
-- `platform-cicd` : bootstrap ArgoCD, credentials GitLab et runner.
+- `infra-iac` : socle Kubernetes, storage, Gateway API, MetalLB, Traefik.
+- `platform-bootstrap` : bootstrap ArgoCD, credentials GitLab et runner.
 - `platform-gitops` : configuration suivie en continu par ArgoCD (dont GitLab).
 - `toolbox` : utilitaires operateur hors bootstrap principal.
 
@@ -71,8 +71,8 @@ Une fois la commande terminée :
 
 Pour le détail de chaque étape :
 
-- `infrastructure/AGENTS.md` : socle Kubernetes (Packer, Vagrant, Ansible).
-- `platform-cicd/AGENTS.md` : bootstrap ArgoCD, GitLab et credentials.
+- `infra-iac/AGENTS.md` : socle Kubernetes (Packer, Vagrant, Ansible).
+- `platform-bootstrap/AGENTS.md` : bootstrap ArgoCD, GitLab et credentials.
 - `platform-gitops/AGENTS.md` : ce qu'ArgoCD synchronise en continu ensuite.
 
 ### Parcours 2 — Une équipe applicative crée un projet

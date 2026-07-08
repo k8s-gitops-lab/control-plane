@@ -3,7 +3,7 @@
 > Initiative transverse décidée le 2026-07-08 : rendre le produit plus
 > extensible et instanciable ailleurs (autre domaine, autre registre,
 > plusieurs équipes). Ce fichier suit l'avancement ; chaque axe est
-> implémenté **dans son repo propriétaire**, jamais depuis `control-plane`
+> implémenté **dans son repo propriétaire**, jamais depuis `cockpit`
 > (cf. `AGENTS.md`). L'état actuel ci-dessous a été vérifié sur le code —
 > plusieurs axes sont déjà partiellement en place.
 
@@ -11,12 +11,12 @@
 
 | # | Axe | Statut | Repo(s) propriétaire(s) | Risque |
 |---|---|---|---|---|
-| 1 | Schéma d'inventaire versionné + validation CI | ✅ Fait | `platform-gitops` (+ `platform-cicd`) | Faible |
-| 2 | Contrat de variables plateforme (dé-duplication domaine/registre) | Partiel | `platform-gitops`, `gitlab-projects-iac`, `ci-templates`, `infrastructure` | Faible |
-| 3 | Générateur natif ArgoCD (réduire `render-argocd-apps.py`) | Partiel | `platform-cicd`, `platform-gitops` | Élevé (spike) |
+| 1 | Schéma d'inventaire versionné + validation CI | ✅ Fait | `platform-gitops` (+ `platform-bootstrap`) | Faible |
+| 2 | Contrat de variables plateforme (dé-duplication domaine/registre) | Partiel | `platform-gitops`, `gitlab-projects-iac`, `ci-templates`, `infra-iac` | Faible |
+| 3 | Générateur natif ArgoCD (réduire `render-argocd-apps.py`) | Partiel | `platform-bootstrap`, `platform-gitops` | Élevé (spike) |
 | 4 | `ci-templates` → composants CI versionnés (`spec:inputs`) | ✅ Fait | `ci-templates` | Moyen |
 | 5 | Séquence d'environnements déclarée par app | Partiel | `platform-gitops` + `ci-templates` | Moyen-élevé |
-| 7 | Multi-tenancy GitLab (token de projet par app) | Partiel | `gitlab-projects-iac`, `platform-cicd` | Élevé (sécurité) |
+| 7 | Multi-tenancy GitLab (token de projet par app) | Partiel | `gitlab-projects-iac`, `platform-bootstrap` | Élevé (sécurité) |
 | 6 | Scaffolding d'app (`app-template` + `toolbox`) | **Différé** | `toolbox` (+ nouveau repo) | — |
 
 ## Séquencement recommandé
@@ -37,7 +37,7 @@
 ## Axe 1 — Schéma d'inventaire versionné
 
 **État actuel** : aucun schéma formel. Le contrat vit implicitement dans
-`platform-cicd/scripts/platform_inventory.py` (`_normalize_app`). Champs
+`platform-bootstrap/scripts/platform_inventory.py` (`_normalize_app`). Champs
 requis : `name`, `group`. Tout le reste est dérivé par convention :
 `description`, `services` (liste de strings ou `{name,image}`), `hasPreprod`,
 `environments`, `manifests`, `code`, `showcaseService`, `argocd`,
@@ -75,7 +75,7 @@ par groupe d'app dans `gitlab-projects-iac/terraform/main.tf`, en suivant le
 pattern `for_each = local.app_groups` déjà en place — c'est le canal natif
 manquant, aucun changement requis côté `ci-templates` (qui lit déjà
 `${DOMAIN}`). Dédupliquer `_PLATFORM_DEFAULTS`/`platform_constants()` entre
-`platform-cicd` et `toolbox`. (2b, plus lourd) câbler le CR Flux
+`platform-bootstrap` et `toolbox`. (2b, plus lourd) câbler le CR Flux
 `terraform-gitlab.yaml` sur `apps.yaml.platform.domain`, et paramétrer les
 hostnames d'ingress des manifests plateforme statiques. Chaque repo garde
 son default local (cf. `AGENTS.md`) ; le contrat ne fixe que les noms.

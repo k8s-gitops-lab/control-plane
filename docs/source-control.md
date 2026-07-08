@@ -6,9 +6,9 @@ Le POC distingue deux niveaux de depots.
 
 Les repos du workspace sont geres sur GitHub. C'est l'amont de developpement :
 
-- `control-plane`
-- `infrastructure`
-- `platform-cicd`
+- `cockpit`
+- `infra-iac`
+- `platform-bootstrap`
 - `platform-gitops`
 - `toolbox`
 - `gitlab-projects-iac`

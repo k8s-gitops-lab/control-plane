@@ -1,8 +1,8 @@
-# AGENTS.md — control-plane
+# AGENTS.md — cockpit
 
 ## Rôle du dépôt
 
-`control-plane` orchestre tous les dépôts du POC. C'est le point d'entrée
+`cockpit` orchestre tous les dépôts du POC. C'est le point d'entrée
 unique pour provisionner l'environnement complet : cluster, plateforme et seed.
 Il ne contient pas de code exécuté en production.
 
@@ -12,10 +12,10 @@ Il ne contient pas de code exécuté en production.
 valeurs effectivement passées aux Makefiles délégués (domaine, namespaces,
 version ArgoCD). Chaque repo reste autonome avec ses propres defaults ; en
 particulier, les versions du socle cluster (Kubernetes, Flannel, Helm,
-charts...) sont pinnées dans `infrastructure/ansible/group_vars/all.yml`, pas
+charts...) sont pinnées dans `infra-iac/ansible/group_vars/all.yml`, pas
 ici. Ne déclarer dans `platform.yml` que des valeurs réellement consommées
 par une cible du Makefile. `scripts/export-env.py` le transforme en variables
-shell exportées et mémorisées dans `.control-plane.env`.
+shell exportées et mémorisées dans `.cockpit.env`.
 
 ## Commandes principales
 
@@ -51,7 +51,7 @@ respecter cet ordre de préférence :
 
 Exemple appliqué : les étapes de bootstrap ArgoCD/Flux (CA trust, install,
 ingress, secret SOPS) vivent dans le rôle `platform_bootstrap` de
-`platform-cicd/ansible/` ; le Makefile de `platform-cicd` ne fait qu'appeler
+`platform-bootstrap/ansible/` ; le Makefile de `platform-bootstrap` ne fait qu'appeler
 `ansible-playbook playbook-platform.yml --tags <étape>` dans ce même dépôt.
 
 **Orchestration de plusieurs tâches** : quand il s'agit d'enchaîner plusieurs
@@ -61,9 +61,9 @@ l'orchestration Ansible (playbook avec plusieurs tâches/rôles tagués,
 reste pour exposer un point d'entrée unique à l'opérateur (ex. `make
 bootstrap`), pas pour porter la logique de séquencement elle-même.
 
-**Images Packer** : le code déployé dans les images Packer (`infrastructure/packer`)
+**Images Packer** : le code déployé dans les images Packer (`infra-iac/packer`)
 doit passer par le `provisioner "ansible"` (réutilisant les rôles/playbooks
-existants), jamais par un `provisioner "shell"` ad hoc — cf. `infrastructure/AGENTS.md`.
+existants), jamais par un `provisioner "shell"` ad hoc — cf. `infra-iac/AGENTS.md`.
 
 ## Structure du code Ansible
 
@@ -89,8 +89,8 @@ Ne jamais modifier les fichiers directement dans GitLab. Toujours :
 
 ## Ce qu'il ne faut pas faire
 
-- Ne pas modifier les dépôts voisins (`infrastructure`, `platform-cicd`, etc.)
+- Ne pas modifier les dépôts voisins (`infra-iac`, `platform-bootstrap`, etc.)
   directement depuis ce dépôt — passer par leurs propres Makefiles.
 - Ne pas hardcoder des valeurs de versions dans les Makefiles ; les lire depuis
   les variables exportées par `export-env.py`.
-- Ne pas committer `.control-plane.env` (contient des chemins locaux absolus).
+- Ne pas committer `.cockpit.env` (contient des chemins locaux absolus).

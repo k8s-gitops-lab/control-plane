@@ -2,7 +2,7 @@ SHELL := /bin/bash -e -o pipefail
 .SHELLFLAGS := -e -o pipefail -c
 
 CONFIG ?= platform.yml
-ENV_FILE ?= .control-plane.env
+ENV_FILE ?= .cockpit.env
 MAKE_BIN ?= make
 ENV = CONFIG="$(CONFIG)" python3 scripts/export-env.py > "$(ENV_FILE)" && . "$(ENV_FILE)"
 START_AT ?=
@@ -25,35 +25,35 @@ env: ## Affiche les variables exportees depuis platform.yml
 
 vm-images-build: ## Construit les boxes Vagrant k8s-master/k8s-worker via Packer
 	@$(ENV); \
-	echo "==> control-plane: vm-images-build -> make -C $$INFRASTRUCTURE_REPO/packer build"; \
+	echo "==> cockpit: vm-images-build -> make -C $$INFRASTRUCTURE_REPO/packer build"; \
 	$(MAKE_BIN) -C "$$INFRASTRUCTURE_REPO/packer" build
 
 vm-images-add: ## Ajoute les boxes Packer construites au registre Vagrant local
 	@$(ENV); \
-	echo "==> control-plane: vm-images-add -> vagrant box add"; \
+	echo "==> cockpit: vm-images-add -> vagrant box add"; \
 	vagrant box add k8s-master "$$INFRASTRUCTURE_REPO/packer/output/k8s-master/package.box" --force; \
 	vagrant box add k8s-worker "$$INFRASTRUCTURE_REPO/packer/output/k8s-worker/package.box" --force
 
 vm-images: vm-images-build vm-images-add ## Construit et enregistre les images VM du cluster
 
-cluster-up: ## Provisionne le socle cluster via ../infrastructure
+cluster-up: ## Provisionne le socle cluster via ../infra-iac
 	@$(ENV); \
-	echo "==> control-plane: cluster-up -> make -C $$INFRASTRUCTURE_REPO up"; \
+	echo "==> cockpit: cluster-up -> make -C $$INFRASTRUCTURE_REPO up"; \
 	$(MAKE_BIN) -C "$$INFRASTRUCTURE_REPO" up
 
 cluster-from-images: vm-images-add ## Deploie le cluster depuis les boxes Packer k8s-master/k8s-worker
 	@$(ENV); \
-	echo "==> control-plane: cluster-from-images -> make -C $$INFRASTRUCTURE_REPO create-cluster"; \
+	echo "==> cockpit: cluster-from-images -> make -C $$INFRASTRUCTURE_REPO create-cluster"; \
 	$(MAKE_BIN) -C "$$INFRASTRUCTURE_REPO" create-cluster
 
 snapshot-cluster: ## Snapshot VirtualBox du cluster juste apres provisioning (avant platform-bootstrap)
 	@$(ENV); \
-	echo "==> control-plane: snapshot-cluster -> make -C $$INFRASTRUCTURE_REPO snapshot-cluster"; \
+	echo "==> cockpit: snapshot-cluster -> make -C $$INFRASTRUCTURE_REPO snapshot-cluster"; \
 	$(MAKE_BIN) -C "$$INFRASTRUCTURE_REPO" snapshot-cluster SNAPSHOT_NAME="$(SNAPSHOT_NAME)"
 
 restore-cluster: ## Restaure le cluster depuis un snapshot VirtualBox (SNAPSHOT_NAME, defaut cluster-ready)
 	@$(ENV); \
-	echo "==> control-plane: restore-cluster -> make -C $$INFRASTRUCTURE_REPO restore-cluster"; \
+	echo "==> cockpit: restore-cluster -> make -C $$INFRASTRUCTURE_REPO restore-cluster"; \
 	$(MAKE_BIN) -C "$$INFRASTRUCTURE_REPO" restore-cluster SNAPSHOT_NAME="$(SNAPSHOT_NAME)"
 
 platform-up: ## Sequence complete (images, cluster, snapshot, bootstrap, git-creds, verify), reprise automatique et re-verification des etapes deja faites
@@ -64,7 +64,7 @@ platform-provision: ## Comme platform-up mais sans reconstruire les images VM
 
 platform-from-snapshot: ## Restaure le snapshot VirtualBox (SNAPSHOT_NAME) puis rejoue platform-bootstrap -> verify
 	@$(ENV); \
-	echo "==> control-plane: platform-from-snapshot -> restore-cluster puis bootstrap --from platform-bootstrap"; \
+	echo "==> cockpit: platform-from-snapshot -> restore-cluster puis bootstrap --from platform-bootstrap"; \
 	$(MAKE_BIN) -C "$$INFRASTRUCTURE_REPO" restore-cluster SNAPSHOT_NAME="$(SNAPSHOT_NAME)" && \
 	python3 scripts/bootstrap.py --config "$(CONFIG)" --make "$(MAKE_BIN)" --from platform-bootstrap
 
@@ -74,9 +74,9 @@ platform-bootstrap-status: ## Affiche l'etat de reprise de platform-up (etapes t
 platform-bootstrap-reset: ## Efface l'etat de reprise sauvegarde de platform-up
 	rm -f .bootstrap-state.json
 
-platform-bootstrap: ## Bootstrap ArgoCD et la plateforme via ../platform-cicd, relancable avec START_AT=<etape>
+platform-bootstrap: ## Bootstrap ArgoCD et la plateforme via ../platform-bootstrap, relancable avec START_AT=<etape>
 	@$(ENV); \
-	echo "==> control-plane: platform-bootstrap -> make -C $$PLATFORM_REPO_ROOT bootstrap"; \
+	echo "==> cockpit: platform-bootstrap -> make -C $$PLATFORM_REPO_ROOT bootstrap"; \
 	$(MAKE_BIN) -C "$$PLATFORM_REPO_ROOT" bootstrap \
 	  ARGOCD_VERSION="$$ARGOCD_VERSION" \
 	  GITLAB_DOMAIN="$$GITLAB_DOMAIN" \
@@ -86,48 +86,48 @@ platform-bootstrap: ## Bootstrap ArgoCD et la plateforme via ../platform-cicd, r
 	  STOP_AFTER="$(STOP_AFTER)"
 
 platform-verify: ## Smoke test de bout en bout : cluster, GitLab, ArgoCD Synced/Healthy, secret GHCR, PAT, projets et pipelines des apps
-	@echo "==> control-plane: platform-verify -> scripts/platform-verify.py"; \
+	@echo "==> cockpit: platform-verify -> scripts/platform-verify.py"; \
 	CONFIG="$(CONFIG)" python3 scripts/platform-verify.py
 
 gitlab-git-creds: ## Verifie le PAT GitLab root stocke dans git-credential, le (re)cree si absent/invalide/proche expiration
 	@$(ENV); \
-	echo "==> control-plane: gitlab-git-creds -> scripts/gitlab-git-creds.py"; \
+	echo "==> cockpit: gitlab-git-creds -> scripts/gitlab-git-creds.py"; \
 	GITLAB_URL="https://gitlab.$$GITLAB_DOMAIN" \
 	  GITLAB_NAMESPACE="$$GITLAB_NAMESPACE" \
 	  INTERNAL_GITLAB_HOST="$$INTERNAL_GITLAB_HOST" \
 	  python3 scripts/gitlab-git-creds.py
 
 gitlab-projects: ## Attend que le Terraform gitlab-iac (tf-controller) ait cree les projets GitLab applicatifs
-	@echo "==> control-plane: gitlab-projects -> scripts/gitlab-iac-wait.py"; \
+	@echo "==> cockpit: gitlab-projects -> scripts/gitlab-iac-wait.py"; \
 	CONFIG="$(CONFIG)" python3 scripts/gitlab-iac-wait.py
 
 platform-down: ## Eteint les VMs de la plateforme sans les detruire
 	@$(ENV); \
-	echo "==> control-plane: platform-down -> make -C $$INFRASTRUCTURE_REPO down"; \
+	echo "==> cockpit: platform-down -> make -C $$INFRASTRUCTURE_REPO down"; \
 	$(MAKE_BIN) -C "$$INFRASTRUCTURE_REPO" down
 
 platform-destroy: ## Detruit les VMs de la plateforme
 	@$(ENV); \
-	echo "==> control-plane: platform-destroy -> make -C $$INFRASTRUCTURE_REPO destroy"; \
+	echo "==> cockpit: platform-destroy -> make -C $$INFRASTRUCTURE_REPO destroy"; \
 	$(MAKE_BIN) -C "$$INFRASTRUCTURE_REPO" destroy
 	@rm -f .bootstrap-state.json
 
 gitlab-tf-credentials: ## Cree/rotate le PAT GitLab consomme par Terraform
 	@$(ENV); \
-	echo "==> control-plane: gitlab-tf-credentials -> make -C $$PLATFORM_REPO_ROOT gitlab-tf-credentials"; \
+	echo "==> cockpit: gitlab-tf-credentials -> make -C $$PLATFORM_REPO_ROOT gitlab-tf-credentials"; \
 	$(MAKE_BIN) -C "$$PLATFORM_REPO_ROOT" gitlab-tf-credentials \
 	  GITLAB_DOMAIN="$$GITLAB_DOMAIN" \
 	  GITLAB_NAMESPACE="$$GITLAB_NAMESPACE"
 
 argocd-password: ## Affiche le mot de passe admin initial d'ArgoCD
 	@$(ENV); \
-	echo "==> control-plane: argocd-password -> make -C $$PLATFORM_REPO_ROOT argocd-password"; \
+	echo "==> cockpit: argocd-password -> make -C $$PLATFORM_REPO_ROOT argocd-password"; \
 	$(MAKE_BIN) -C "$$PLATFORM_REPO_ROOT" argocd-password \
 	  ARGOCD_NAMESPACE="$$ARGOCD_NAMESPACE"
 
 gitlab-password: ## Affiche le mot de passe root initial de GitLab
 	@$(ENV); \
-	echo "==> control-plane: gitlab-password -> make -C $$PLATFORM_REPO_ROOT gitlab-password"; \
+	echo "==> cockpit: gitlab-password -> make -C $$PLATFORM_REPO_ROOT gitlab-password"; \
 	$(MAKE_BIN) -C "$$PLATFORM_REPO_ROOT" gitlab-password \
 	  GITLAB_NAMESPACE="$$GITLAB_NAMESPACE"
 
@@ -135,8 +135,8 @@ ghcr-token-init: ## Genere/chiffre platform-gitops/flux-secrets/ghcr-pull-secret
 	CONFIG="$(CONFIG)" python3 scripts/ghcr-token-init.py
 
 ghcr-pull-secret: ## Attend que Flux depose le secret source GHCR (flux-secrets/, SOPS) dans argocd ; External Secrets le distribue ensuite aux namespaces applicatifs
-	@echo "==> control-plane: ghcr-pull-secret -> scripts/ghcr-pull-secret-wait.py"; \
+	@echo "==> cockpit: ghcr-pull-secret -> scripts/ghcr-pull-secret-wait.py"; \
 	CONFIG="$(CONFIG)" python3 scripts/ghcr-pull-secret-wait.py
 
-status: ## Affiche l'etat ArgoCD depuis ../platform-cicd
-	@$(ENV); echo "==> control-plane: status -> make -C $$PLATFORM_REPO_ROOT status"; $(MAKE_BIN) -C "$$PLATFORM_REPO_ROOT" status ARGOCD_NAMESPACE="$$ARGOCD_NAMESPACE"
+status: ## Affiche l'etat ArgoCD depuis ../platform-bootstrap
+	@$(ENV); echo "==> cockpit: status -> make -C $$PLATFORM_REPO_ROOT status"; $(MAKE_BIN) -C "$$PLATFORM_REPO_ROOT" status ARGOCD_NAMESPACE="$$ARGOCD_NAMESPACE"

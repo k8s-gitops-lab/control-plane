@@ -1,6 +1,6 @@
 .DS_Store
 .env
-.control-plane.env
+.cockpit.env
 .bootstrap-state.json
 .venv/
 .pycache/

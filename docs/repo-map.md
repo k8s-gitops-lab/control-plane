@@ -6,9 +6,9 @@ repos dans cet ordre.
 
 | Repo | Role | A retenir |
 |---|---|---|
-| `control-plane` | Point d'entree operateur | Orchestre les autres repos sans devenir une dependance runtime. |
-| `infrastructure` | Socle Kubernetes local | Cree les VMs, initialise Kubernetes et installe les add-ons reseau bas niveau. |
-| `platform-cicd` | Bootstrap technique | Installe ArgoCD, configure le bootstrap initial et expose les commandes operateur. |
+| `cockpit` | Point d'entree operateur | Orchestre les autres repos sans devenir une dependance runtime. |
+| `infra-iac` | Socle Kubernetes local | Cree les VMs, initialise Kubernetes et installe les add-ons reseau bas niveau. |
+| `platform-bootstrap` | Bootstrap technique | Installe ArgoCD, configure le bootstrap initial et expose les commandes operateur. |
 | `platform-gitops` | Etat GitOps suivi par ArgoCD | Contient `argocd/managed/`, `argocd/platform/` et l'inventaire applicatif. |
 | `toolbox` | Outillage partage | Onboarding d'apps (PR sur l'inventaire), rendu des variables Terraform GitLab. |
 | `gitlab-projects-iac` | Provisioning GitLab | Terraform (applique automatiquement par Flux) : cree/met a jour les projets GitLab, la protection de branches et les miroirs GitHub. |
@@ -18,8 +18,8 @@ repos dans cet ordre.
 
 ## Flux principal
 
-1. `infrastructure` fournit le cluster Kubernetes local.
-2. `platform-cicd` installe ArgoCD et applique le root Application.
+1. `infra-iac` fournit le cluster Kubernetes local.
+2. `platform-bootstrap` installe ArgoCD et applique le root Application.
 3. ArgoCD lit `platform-gitops` et synchronise GitLab, les routes plateforme
    et les ApplicationSets applicatifs (les images applicatives sont poussées
    sur GHCR, pas sur un registry interne au cluster).

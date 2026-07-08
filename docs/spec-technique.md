@@ -15,7 +15,7 @@ rollback par `git revert` sur le dépôt manifests) est implémentée et
 documentée en détail dans `ci-templates` (jobs, table d'activation par
 environnement) et `gitlab-projects-iac` (protections de branche, gates
 Terraform). Ce document ne garde que ce qui concerne l'orchestration
-`control-plane` elle-même ; voir :
+`cockpit` elle-même ; voir :
 
 - `ci-templates/docs/spec-technique.md` : détail des jobs, `resource_group`,
   gates manuels/protected environment, format des commits GitOps.
@@ -62,7 +62,7 @@ image`) : `ci-templates/docs/spec-technique.md` et
   schéma "tout par convention" : la sécurité attendue est lisible directement
   dans l'inventaire, sans avoir à connaître le renderer. Consommé par deux
   mécanismes :
-  - le **rendu ArgoCD** : `platform-cicd/scripts/render-argocd-apps.py`
+  - le **rendu ArgoCD** : `platform-bootstrap/scripts/render-argocd-apps.py`
     (cible `make argocd-apps-render`), déclenché automatiquement par un job
     CI au merge d'une PR sur `platform-gitops`, génère par app un dossier
     `argocd/generated/apps/<app>/` (un `AppProject` dédié, un
@@ -136,22 +136,22 @@ Le parcours complet (côté équipe applicative) est décrit dans
 [`../README.md`](../README.md#parcours-2--une-équipe-applicative-crée-un-projet).
 Résumé technique : sources locales (`<app>/`, `<app>-iac/`) → entrée dans
 `platform-gitops/argocd/apps/<app>.yaml` via PR → au merge, régénération
-`argocd/managed/apps-appset.yaml` (job CI `platform-cicd`) et de
+`argocd/managed/apps-appset.yaml` (job CI `platform-bootstrap`) et de
 `gitlab-projects-iac/terraform/apps.auto.tfvars.json` (job CI
 `platform-gitops`, script `toolbox/scripts/render-gitlab-projects.py`) →
 Terraform crée/actualise les projets GitLab.
 
 ## Outillage partagé
 
-`control-plane/scripts/` ne contient que les scripts propres à
+`cockpit/scripts/` ne contient que les scripts propres à
 l'orchestration locale (`bootstrap.py`, `export-env.py`,
 `gitlab-git-creds.py`, `ghcr-token-init.py`, scripts workspace
 `clone-github-org.sh` et `commit-*.sh` — les deux scripts `commit-*`
 encodent des directions de vérité opposées, voir
 [`source-control.md`](source-control.md)). Les scripts de bootstrap plateforme
 (`gitlab-tf-credentials.py`, `render-argocd-apps.py`, `gitlab-runner-token.py`,
-`gitlab-dex-oauth-app.py`) vivent dans `platform-cicd/scripts/` et sont
-appelés par `control-plane` via `make -C ../platform-cicd <cible>` (voir
+`gitlab-dex-oauth-app.py`) vivent dans `platform-bootstrap/scripts/` et sont
+appelés par `cockpit` via `make -C ../platform-bootstrap <cible>` (voir
 `Makefile`). Les utilitaires d'administration applicative
 (`render-gitlab-projects.py`) vivent dans `toolbox/scripts/` et s'appellent
 avec `PLATFORM_REPO_ROOT` pointant vers `platform-gitops`. L'ajout d'une app ne passe pas par un script : c'est une
@@ -161,12 +161,12 @@ pull/merge request directe sur `platform-gitops`.
 
 La chaîne CI/CD principale (bootstrap ArgoCD/GitLab, `helloworld`,
 inventaire multi-apps) est automatisée. Le détail des scripts de bootstrap
-plateforme est documenté dans `platform-cicd/docs/spec-technique.md`.
+plateforme est documenté dans `platform-bootstrap/docs/spec-technique.md`.
 
 - `argocd/managed/` (dans `platform-gitops`) déclare les add-ons plateforme
   applicative synchronisés par ArgoCD ; les add-ons cluster bas niveau
-  vivent dans `infrastructure/ansible`, le bootstrap ArgoCD/GitLab dans
-  `platform-cicd/ansible`.
+  vivent dans `infra-iac/ansible`, le bootstrap ArgoCD/GitLab dans
+  `platform-bootstrap/ansible`.
 - Le pipeline générique (`ci-templates`) couvre le tag unique `vX.Y.Z`, le
   build once/promote everywhere, les gates manuels, le rollback prod et le
   self-heal ArgoCD.
@@ -210,8 +210,8 @@ Dette active hors chaîne CI/CD applicative :
 
 ## Annexe : infrastructure Ansible/k8s
 
-`infrastructure` (Packer, Vagrant et playbooks Ansible) fournit le socle
+`infra-iac` (Packer, Vagrant et playbooks Ansible) fournit le socle
 Kubernetes local sur lequel la chaîne CI/CD `helloworld`, ArgoCD et GitLab
 sont déployés. La séparation de responsabilités reste volontaire :
-`infrastructure` construit et initialise le socle Kubernetes, `platform-cicd` déploie
-la plateforme applicative, et `control-plane` orchestre le parcours complet.
+`infra-iac` construit et initialise le socle Kubernetes, `platform-bootstrap` déploie
+la plateforme applicative, et `cockpit` orchestre le parcours complet.

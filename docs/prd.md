@@ -13,7 +13,7 @@ autohébergée sur un cluster Kubernetes local. Tous les projets GitLab sont
 créés sous le namespace personnel `root` (seul utilisateur de cette instance) ;
 les noms de dépôts ci-dessous omettent donc ce préfixe par souci de lisibilité.
 
-- **infrastructure** : cluster Kubernetes local Vagrant/kubeadm, avec images VM
+- **infra-iac** : cluster Kubernetes local Vagrant/kubeadm, avec images VM
   construites par Packer.
 - **ArgoCD** : GitOps, pilote le déploiement des composants plateforme et des
   applications via des `Application`.

@@ -16,7 +16,7 @@ Options:
   -m, --message MESSAGE   Message utilise pour git commit.
   -r, --remote TARGET     Cible de push: github, gitlab ou both.
   -d, --dir DIR           Dossier parent contenant les repos.
-                          Par defaut: parent du repo control-plane.
+                          Par defaut: parent du repo cockpit.
   -n, --dry-run           Affiche les actions sans modifier ni pousser.
   -h, --help              Affiche cette aide.
 

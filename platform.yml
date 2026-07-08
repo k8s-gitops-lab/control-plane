@@ -1,11 +1,11 @@
 # Profil operateur optionnel.
 # Les repos references ci-dessous doivent rester executables seuls avec leurs
 # propres valeurs par defaut. Ce fichier ne fait que passer des surcharges
-# coherentes quand on orchestre le POC depuis control-plane.
+# coherentes quand on orchestre le POC depuis cockpit.
 #
 # Les versions du socle cluster (kubernetes, flannel, helm, charts MetalLB/
 # Traefik, Gateway API...) sont pinnees dans
-# infrastructure/ansible/group_vars/all.yml et ne sont pas surchargeables ici.
+# infra-iac/ansible/group_vars/all.yml et ne sont pas surchargeables ici.
 platform:
   domain: 192.168.33.100.nip.io
   gitlab:
@@ -14,8 +14,8 @@ platform:
   argocd:
     namespace: argocd
   repositories:
-    infrastructure: ../infrastructure
-    platform: ../platform-cicd
+    infrastructure: ../infra-iac
+    platform: ../platform-bootstrap
     gitops: ../platform-gitops
     toolbox: ../toolbox
 

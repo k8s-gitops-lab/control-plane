@@ -27,16 +27,16 @@ de vérification avait sous-estimé l'avancement réel ; ils se classent en 3
 catégories :
 
 1. **Sources de vérité déjà en place** (à garder, à documenter comme telles) :
-   - `infrastructure/ansible/group_vars/all.yml` → `platform.domain` (socle cluster)
+   - `infra-iac/ansible/group_vars/all.yml` → `platform.domain` (socle cluster)
    - `platform-gitops/argocd/apps.yaml` → bloc `platform:` (`domain`, `registry.host`, `repoURL`, `targetRevision`) + `gitlab.internalHost`
-   - `control-plane/platform.yml` → profil opérateur (surcharge)
+   - `cockpit/platform.yml` → profil opérateur (surcharge)
    - `platform_constants()` (dans les deux copies de `platform_inventory.py`,
      voir ci-dessous) fusionne **déjà** `apps.yaml.platform` par-dessus
      `_PLATFORM_DEFAULTS` (`{**_PLATFORM_DEFAULTS, **inventory.get("platform", {})}`)
      — `apps.yaml` gagne déjà quand présent. Ce n'est pas une duplication
      active, juste un filet de sécurité / default de repli.
 2. **Consommateurs à câbler sur une source** (le vrai travail) :
-   - `platform-cicd/scripts/platform_inventory.py` **et**
+   - `platform-bootstrap/scripts/platform_inventory.py` **et**
      `toolbox/scripts/platform_inventory.py` — `_PLATFORM_DEFAULTS` (dict
      domaine+registre) et `platform_constants()` sont identiques entre les
      deux copies ; le reste du fichier diverge (toolbox a en plus
@@ -76,9 +76,9 @@ catégories :
      lignes 192-223) — les groupes d'app sont top-level et indépendants
      (pas d'héritage depuis le groupe `infra`), donc toute variable de
      plateforme doit être dupliquée par groupe selon ce même pattern.
-   - Manifests plateforme (ingress/hostnames) : `platform-gitops/argocd/platform/{argocd-config/argocd-cm.yaml, argocd-ui/route.yaml, argocd-ui/dex-route.yaml, gitlab-routes/routes.yaml, gitlab/values-local.yaml, tf-controller/terraform-gitlab.yaml}`, `platform-cicd/argocd/dex-ca-patch.yaml`, `platform-cicd/ansible/roles/platform_bootstrap/defaults/main.yml`
+   - Manifests plateforme (ingress/hostnames) : `platform-gitops/argocd/platform/{argocd-config/argocd-cm.yaml, argocd-ui/route.yaml, argocd-ui/dex-route.yaml, gitlab-routes/routes.yaml, gitlab/values-local.yaml, tf-controller/terraform-gitlab.yaml}`, `platform-bootstrap/argocd/dex-ca-patch.yaml`, `platform-bootstrap/ansible/roles/platform_bootstrap/defaults/main.yml`
    - Manifests d'app : `helloworld-iac/k8s/*route.yaml` (réécrits par `deploy.py update_routes` à chaque déploiement — donc pilotés par `DOMAIN`, à confirmer)
-   - Scripts GitLab : `platform-cicd/scripts/{gitlab-dex-oauth-app,gitlab-runner-token,gitlab-tf-credentials}.py`, `control-plane/scripts/gitlab-git-creds.py`, `toolbox/scripts/{get-gitlab-token,platform_git}.py`
+   - Scripts GitLab : `platform-bootstrap/scripts/{gitlab-dex-oauth-app,gitlab-runner-token,gitlab-tf-credentials}.py`, `cockpit/scripts/gitlab-git-creds.py`, `toolbox/scripts/{get-gitlab-token,platform_git}.py`
 3. **Hors périmètre** (artefacts de dev local, ne pas toucher) :
    - `*/.gitlab-ci-local.yml`, `*/.claude/settings.local.json`
 
@@ -90,7 +90,7 @@ catégories :
   local.app_groups` déjà en place (`app_ghcr_token` et consorts). C'est le
   canal natif manquant : `deploy-gitops/template.yml` (déjà en prod) attend
   `DOMAIN` en variable d'env mais rien ne la fournit en pipeline réel. Idem
-  pour `_PLATFORM_DEFAULTS` : dédupliquer entre `platform-cicd` et
+  pour `_PLATFORM_DEFAULTS` : dédupliquer entre `platform-bootstrap` et
   `toolbox` (un seul exemplaire partagé, ou vendoring documenté avec check
   de divergence).
 - **2b — Manifests plateforme** : paramétrer les hostnames d'ingress des
@@ -105,11 +105,11 @@ catégories :
 sources de vérité (`group_vars/all.yml` + `apps.yaml` + `platform.yml`) ; un
 `grep -rl 192.168.33.100` hors sources de vérité et hors fichiers `.local`
 ne retourne plus de **consommateur** applicatif. `make platform-verify`
-(control-plane) passe toujours.
+(cockpit) passe toujours.
 
 **Vérification** — `grep -rln '192.168.33.100'` avant/après (le compte des
 consommateurs baisse) ; rendu inchangé côté ArgoCD (`render-argocd-apps.py
---check` dans `platform-cicd`) ; `terraform validate` dans `gitlab-projects-iac`.
+--check` dans `platform-bootstrap`) ; `terraform validate` dans `gitlab-projects-iac`.
 
 **Pièges** — Ne pas casser les deux sources de vérité légitimes ; les
 `_PLATFORM_DEFAULTS` sont un filet de sécurité, pas un doublon à supprimer
@@ -180,7 +180,7 @@ côtés** : rendu ArgoCD ET génération des jobs de déploiement CI. `preprod`
 cesse d'être un cas spécial.
 
 **État actuel (vérifié)** —
-- Côté rendu : `platform-cicd/scripts/platform_inventory.py:_normalize_app`
+- Côté rendu : `platform-bootstrap/scripts/platform_inventory.py:_normalize_app`
   accepte **déjà** un champ `environments:` en surcharge **complète** (chaque
   entrée = `name/branch/namespace/services[{name,url,ingressHost}]`), sinon
   dérive `dev → rec → (preprod si hasPreprod) → prod`. Le JSON Schema
@@ -311,7 +311,7 @@ distribution).
 ## Dette transverse relevée
 
 - **Deux copies de `platform_inventory.py` partiellement dupliquées**
-  (`platform-cicd/scripts/` et `toolbox/scripts/`) : seuls
+  (`platform-bootstrap/scripts/` et `toolbox/scripts/`) : seuls
   `_PLATFORM_DEFAULTS` et `platform_constants()` sont identiques entre les
   deux fichiers ; le reste diverge (`toolbox` a en plus
   `platform_repo_root()`/clone-to-tmp pour le mode MR — 210 lignes contre

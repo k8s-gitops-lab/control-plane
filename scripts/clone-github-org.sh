@@ -10,7 +10,7 @@ Options:
   -o, --org ORG          Organisation GitHub a cloner.
                          Par defaut: k8s-gitops-lab
   -d, --dest DIR         Dossier parent de destination.
-                         Par defaut: parent du repo control-plane
+                         Par defaut: parent du repo cockpit
   --ssh                  Clone via SSH.
   --https                Clone via HTTPS. Par defaut.
   --update               Fait git pull --ff-only dans les repos deja clones.

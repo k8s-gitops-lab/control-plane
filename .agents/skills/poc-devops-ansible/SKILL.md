@@ -1,13 +1,13 @@
 ---
 name: poc-devops-ansible
-description: 'Ansible conventions specific to the poc-devops workspace (control-plane, infrastructure, platform-cicd) -- when to use Ansible vs Terraform/Kubernetes vs Make, task structure rules, and the Packer build-time/runtime split. Use when writing or reviewing Ansible playbooks, roles, tasks, or Packer provisioners in this workspace.'
+description: 'Ansible conventions specific to the poc-devops workspace (cockpit, infra-iac, platform-bootstrap) -- when to use Ansible vs Terraform/Kubernetes vs Make, task structure rules, and the Packer build-time/runtime split. Use when writing or reviewing Ansible playbooks, roles, tasks, or Packer provisioners in this workspace.'
 ---
 
 # Ansible poc-devops
 
-Regles extraites de `control-plane/AGENTS.md` (@ f040e3e, 2026-07-07),
-`infrastructure/AGENTS.md` (@ a17540b, 2026-07-04) et
-`platform-cicd/AGENTS.md` (@ f756db5, 2026-07-04). Si ces fichiers ont
+Regles extraites de `cockpit/AGENTS.md` (@ f040e3e, 2026-07-07),
+`infra-iac/AGENTS.md` (@ a17540b, 2026-07-04) et
+`platform-bootstrap/AGENTS.md` (@ f756db5, 2026-07-04). Si ces fichiers ont
 change depuis ces commits, re-verifier les faits ci-dessous avant de les
 appliquer. Specifique a ce workspace ; pour des conseils Ansible
 generiques, voir le skill `ansible-automation`.
@@ -16,9 +16,9 @@ generiques, voir le skill `ansible-automation`.
 
 | Repo | Playbook | Roles / contenu | Invoque par |
 |---|---|---|---|
-| `infrastructure` | `ansible/playbook.yml` | Provisioning des noeuds k8s (build-time + runtime) | Vagrant, Packer (`provisioner "ansible"`) |
-| `infrastructure` | `ansible/playbook-cluster.yml` | Etapes cluster-dependantes | `make` de `infrastructure` |
-| `platform-cicd` | `ansible/playbook-platform.yml` | `platform_bootstrap`, `argocd_trust_ca` | `make bootstrap` de `platform-cicd` |
+| `infra-iac` | `ansible/playbook.yml` | Provisioning des noeuds k8s (build-time + runtime) | Vagrant, Packer (`provisioner "ansible"`) |
+| `infra-iac` | `ansible/playbook-cluster.yml` | Etapes cluster-dependantes | `make` de `infra-iac` |
+| `platform-bootstrap` | `ansible/playbook-platform.yml` | `platform_bootstrap`, `argocd_trust_ca` | `make bootstrap` de `platform-bootstrap` |
 
 Toujours prefixer un chemin de playbook par son repo : deux playbooks
 peuvent porter le meme nom dans des repos differents.
@@ -38,7 +38,7 @@ ordre :
    d'autres commandes ou expose un point d'entree a l'operateur, jamais pour
    porter de la logique metier.
 
-Exemple applique (`platform-cicd`) : les etapes de bootstrap
+Exemple applique (`platform-bootstrap`) : les etapes de bootstrap
 ArgoCD/Flux/GitLab (CA trust, install, ingress, secret SOPS) vivent dans le
 role `platform_bootstrap` invoque par `ansible/playbook-platform.yml` ; le
 Makefile ne fait qu'appeler
@@ -53,9 +53,9 @@ enchainement de cibles Make qui s'appellent l'une l'autre. Make reste pour
 exposer un point d'entree unique a l'operateur, pas pour porter le
 sequencement lui-meme. Points d'entree reels :
 
-- `platform-cicd` : `make bootstrap` (relancable avec `START_AT=<etape>`),
+- `platform-bootstrap` : `make bootstrap` (relancable avec `START_AT=<etape>`),
   `make bootstrap-from-<etape>`.
-- `control-plane` : `make platform-bootstrap` (delegue a `platform-cicd`,
+- `cockpit` : `make platform-bootstrap` (delegue a `platform-bootstrap`,
   accepte aussi `START_AT=<etape>`).
 
 ## Structure d'une tache Ansible
@@ -73,9 +73,9 @@ sequencement lui-meme. Points d'entree reels :
 
 ## Images Packer : provisioner ansible, jamais shell ad hoc
 
-Le code deploye dans les images Packer (`infrastructure/packer/*.pkr.hcl`)
+Le code deploye dans les images Packer (`infra-iac/packer/*.pkr.hcl`)
 doit passer par le `provisioner "ansible"`, en reutilisant les
-roles/playbooks existants (`infrastructure/ansible/playbook.yml`, avec
+roles/playbooks existants (`infra-iac/ansible/playbook.yml`, avec
 `--skip-tags` pour exclure les etapes qui dependent d'un cluster actif) —
 jamais par un `provisioner "shell"` ad hoc. Pour une nouvelle etape de
 provisioning : ajouter un role/tag Ansible et l'inclure dans le playbook
@@ -103,7 +103,7 @@ partagee.
 
 Si une tache remplit les criteres de la Phase 1 mais reste executee en
 Phase 2, c'est une dette a signaler explicitement (cf. tableau "Opportunite
-non encore exploitee" dans `infrastructure/README.md`) — ne pas la deplacer
+non encore exploitee" dans `infra-iac/README.md`) — ne pas la deplacer
 silencieusement sans le documenter.
 
 ## A faire / A eviter

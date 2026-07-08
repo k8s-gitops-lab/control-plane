@@ -8,7 +8,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WS="${1:-$(cd "$SCRIPT_DIR/../../../../.." && pwd)}"
-REPOS=(control-plane infrastructure platform-cicd platform-gitops
+REPOS=(cockpit infra-iac platform-bootstrap platform-gitops
        gitlab-projects-iac ci-templates toolbox helloworld helloworld-iac)
 
 warn=0

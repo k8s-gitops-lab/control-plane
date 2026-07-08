@@ -6,9 +6,9 @@ description: 'Conventions for writing and maintaining documentation across the p
 # Documentation poc-devops
 
 Conventions extraites de l'usage reel dans les repos du workspace
-(`control-plane`, `infrastructure`, `platform-cicd`, `platform-gitops`,
+(`cockpit`, `infra-iac`, `platform-bootstrap`, `platform-gitops`,
 `gitlab-projects-iac`, `ci-templates`, `helloworld`, `helloworld-iac`,
-`toolbox`), verifiees en dernier @ control-plane f040e3e (2026-07-07).
+`toolbox`), verifiees en dernier @ cockpit f040e3e (2026-07-07).
 Pour des conseils de redaction generiques (Diataxis), voir le skill
 `documentation-writer` ; ce skill-ci porte les regles specifiques a ce
 workspace.
@@ -51,9 +51,9 @@ Chaque repo suit le meme layout ; ne pas en inventer un autre.
 Etat reel verifie : tous les repos ont `AGENTS.md` et les deux `spec-*.md` ;
 `gitlab-projects-iac` n'a pas de `docs/prd.md` (sa vision est portee par le
 PRD de `platform-gitops`). `CONTEXT.md` n'existe aujourd'hui que dans
-`control-plane`. Ne pas "corriger" ces ecarts sans decision explicite.
+`cockpit`. Ne pas "corriger" ces ecarts sans decision explicite.
 
-`control-plane` est le point d'entree du workspace : `docs/repo-map.md` y
+`cockpit` est le point d'entree du workspace : `docs/repo-map.md` y
 liste le role de chaque repo, et `README.md` y porte les parcours
 utilisateurs qui traversent plusieurs repos (voir plus bas).
 
@@ -65,7 +65,7 @@ Ne jamais expliquer la meme chose en detail a deux endroits.
   `spec-fonctionnelle.md`) : garder le detail dans le fichier le plus
   specifique (en general le `spec-*`), remplacer l'autre par un renvoi d'une
   phrase.
-- **Repos differents** (ex. `control-plane` qui redecrit le detail des jobs
+- **Repos differents** (ex. `cockpit` qui redecrit le detail des jobs
   CI de `ci-templates`) : ne garder qu'un resume + un lien vers le repo qui
   possede l'information. Un repo ne documente en detail que ses propres
   internes.
@@ -74,9 +74,9 @@ Symptome a corriger si trouve : deux paragraphes quasi identiques dans deux
 fichiers, ou un `spec-technique.md` qui detaille l'implementation d'un
 **autre** repo plutot que la sienne.
 
-## Parcours utilisateurs (`control-plane/README.md`)
+## Parcours utilisateurs (`cockpit/README.md`)
 
-Le README de `control-plane` porte le recit de bout en bout pour les profils
+Le README de `cockpit` porte le recit de bout en bout pour les profils
 qui traversent plusieurs repos, par exemple :
 
 - **Operateur DevOps** qui met en place la plateforme (commandes, prerequis,
@@ -86,10 +86,10 @@ qui traversent plusieurs repos, par exemple :
 
 Chaque parcours reste un resume avec les commandes cles et renvoie vers le
 repo qui porte le detail technique de chaque etape (ex. `toolbox/README.md`
-pour l'onboarding, `platform-cicd/AGENTS.md` pour le bootstrap). Ne pas
+pour l'onboarding, `platform-bootstrap/AGENTS.md` pour le bootstrap). Ne pas
 dupliquer le recit complet ailleurs — les autres repos gardent seulement
 leur reference technique et peuvent pointer vers ce recit avec une phrase
-d'intro ("ce repo porte le detail du Parcours 2, voir control-plane/README.md").
+d'intro ("ce repo porte le detail du Parcours 2, voir cockpit/README.md").
 
 ## Discipline d'exactitude
 

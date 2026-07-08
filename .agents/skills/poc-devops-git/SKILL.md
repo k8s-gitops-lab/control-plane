@@ -5,7 +5,7 @@ description: 'Dual-remote Git workflow for the poc-devops workspace: every repo 
 
 # Workflow Git poc-devops
 
-Regles extraites de `control-plane/CLAUDE.md` (@ f040e3e, 2026-07-07).
+Regles extraites de `cockpit/CLAUDE.md` (@ f040e3e, 2026-07-07).
 Valables pour **tous** les repos du workspace.
 
 ## Les deux remotes

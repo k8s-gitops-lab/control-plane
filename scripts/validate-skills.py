@@ -19,11 +19,11 @@ from pathlib import Path
 ROOT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent
 WORKSPACE = ROOT.parent
 REPOS = {
-    "control-plane", "infrastructure", "platform-cicd", "platform-gitops",
+    "cockpit", "infra-iac", "platform-bootstrap", "platform-gitops",
     "gitlab-projects-iac", "ci-templates", "toolbox", "helloworld", "helloworld-iac",
 }
 NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
-# chemin `repo/xxx` cite en inline-code, ex. `platform-cicd/ansible/playbook-platform.yml`
+# chemin `repo/xxx` cite en inline-code, ex. `platform-bootstrap/ansible/playbook-platform.yml`
 PATH_RE = re.compile(r"`([a-z0-9-]+)/([A-Za-z0-9_./*-]+)`")
 
 errors: list[str] = []

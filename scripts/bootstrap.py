@@ -103,7 +103,7 @@ def main() -> None:
     parser.add_argument("--no-verify", action="store_true",
                          help="Ne pas verifier la convergence des etapes deja terminees avant de les sauter")
     parser.add_argument("--platform-start-at", default="",
-                         help="Transmis en START_AT a l'etape platform-bootstrap (reprise fine dans platform-cicd)")
+                         help="Transmis en START_AT a l'etape platform-bootstrap (reprise fine dans platform-bootstrap)")
     parser.add_argument("--platform-stop-after", default="",
                          help="Transmis en STOP_AFTER a l'etape platform-bootstrap")
     parser.add_argument("--list", action="store_true", help="Affiche les etapes et leur etat, sans rien executer")
