@@ -36,13 +36,15 @@ repos dans cet ordre.
 
 ## Diagramme de dependances
 
-Les numeros reprennent ceux du flux principal ci-dessus. Les fleches en
-pointilles depuis `cockpit` ne sont pas des dependances d'execution : ce repo
-orchestre les commandes des autres mais aucun d'eux n'a besoin de lui pour
-fonctionner (cf. README).
+Convention : `A --> B` signifie "A depend de B" (A a besoin de B pour
+fonctionner), comme un graphe de dependances npm/Maven — pas l'ordre
+chronologique d'execution (voir le flux principal ci-dessus pour l'ordre).
+Les fleches en pointilles marquent des dependances de deploiement/runtime
+(ArgoCD, orchestration cockpit), les fleches pleines des dependances de
+contenu (donnees, code, pipeline).
 
 ```mermaid
-flowchart LR
+flowchart RL
     cockpit["cockpit\n(point d'entree, non-runtime)"]
 
     infra_iac["infra-iac"]
@@ -54,18 +56,18 @@ flowchart LR
     helloworld["helloworld"]
     helloworld_iac["helloworld-iac"]
 
-    infra_iac -->|"1. cluster K8s"| platform_bootstrap
-    platform_bootstrap -->|"2. installe ArgoCD"| platform_gitops
-    platform_gitops -->|"3. sync GitLab, routes, ApplicationSets"| gitlab_projects_iac
-    toolbox -->|"4. lit l'inventaire"| platform_gitops
-    toolbox -->|"4. genere apps.auto.tfvars.json"| gitlab_projects_iac
-    gitlab_projects_iac -->|"5. cree/MAJ projets + miroirs GitHub"| ci_templates
-    ci_templates -->|"6. pipeline CI/CD"| helloworld
-    helloworld -->|"7. push image, modifie manifests"| helloworld_iac
-    platform_gitops -.->|"8. ArgoCD deploie"| helloworld_iac
+    platform_bootstrap -->|"requiert un cluster K8s"| infra_iac
+    platform_gitops -.->|"necessite ArgoCD installe"| platform_bootstrap
+    toolbox -->|"lit l'inventaire de"| platform_gitops
+    gitlab_projects_iac -.->|"applique par le Flux CR tf-controller de"| platform_gitops
+    gitlab_projects_iac -->|"consomme apps.auto.tfvars.json de"| toolbox
+    ci_templates -->|"projet GitLab cree/mirrore par"| gitlab_projects_iac
+    helloworld -->|"consomme le pipeline de"| ci_templates
+    helloworld_iac -->|"manifests mis a jour par le pipeline de"| helloworld
+    helloworld_iac -.->|"deploye par ArgoCD depuis"| platform_gitops
 
-    cockpit -.orchestre.-> infra_iac
-    cockpit -.orchestre.-> platform_bootstrap
-    cockpit -.orchestre.-> platform_gitops
-    cockpit -.orchestre.-> toolbox
+    cockpit -.->|"make -C ../infra-iac"| infra_iac
+    cockpit -.->|"make -C ../platform-bootstrap"| platform_bootstrap
+    cockpit -.->|"lit platform.yml, statut ArgoCD"| platform_gitops
+    cockpit -.->|"expose le chemin (hors bootstrap principal)"| toolbox
 ```
