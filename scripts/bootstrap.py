@@ -47,9 +47,9 @@ STEPS: list[tuple[str, str, object]] = [
     ("cluster-from-images", "cluster-from-images", pc.check_cluster),
     ("snapshot-cluster", "snapshot-cluster", pc.check_vm_snapshot),
     ("platform-bootstrap", "platform-bootstrap", pc.check_argocd_ready),
-    ("ghcr-pull-secret", "ghcr-pull-secret", pc.check_ghcr_secret),
-    ("gitlab-git-creds", "gitlab-git-creds", pc.check_git_creds),
-    ("gitlab-projects", "gitlab-projects", pc.check_gitlab_iac),
+    ("ghcr-pull-secret", "ghcr-pull-secret-wait", pc.check_ghcr_secret),
+    ("gitlab-git-creds", "gitlab-git-credentials", pc.check_git_creds),
+    ("gitlab-projects", "gitlab-projects-wait", pc.check_gitlab_iac),
     ("platform-verify", "platform-verify", check_platform_verify),
 ]
 STEP_NAMES = [name for name, _, _ in STEPS]
