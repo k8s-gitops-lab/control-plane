@@ -33,3 +33,39 @@ repos dans cet ordre.
 6. `ci-templates` definit la chaine CI/CD consommee par `helloworld`.
 7. `helloworld` pousse des images et modifie `helloworld-iac`.
 8. ArgoCD deploie `helloworld-iac` dans les namespaces d'environnement.
+
+## Diagramme de dependances
+
+Les numeros reprennent ceux du flux principal ci-dessus. Les fleches en
+pointilles depuis `cockpit` ne sont pas des dependances d'execution : ce repo
+orchestre les commandes des autres mais aucun d'eux n'a besoin de lui pour
+fonctionner (cf. README).
+
+```mermaid
+flowchart LR
+    cockpit["cockpit\n(point d'entree, non-runtime)"]
+
+    infra_iac["infra-iac"]
+    platform_bootstrap["platform-bootstrap"]
+    platform_gitops["platform-gitops"]
+    toolbox["toolbox"]
+    gitlab_projects_iac["gitlab-projects-iac"]
+    ci_templates["ci-templates"]
+    helloworld["helloworld"]
+    helloworld_iac["helloworld-iac"]
+
+    infra_iac -->|"1. cluster K8s"| platform_bootstrap
+    platform_bootstrap -->|"2. installe ArgoCD"| platform_gitops
+    platform_gitops -->|"3. sync GitLab, routes, ApplicationSets"| gitlab_projects_iac
+    toolbox -->|"4. lit l'inventaire"| platform_gitops
+    toolbox -->|"4. genere apps.auto.tfvars.json"| gitlab_projects_iac
+    gitlab_projects_iac -->|"5. cree/MAJ projets + miroirs GitHub"| ci_templates
+    ci_templates -->|"6. pipeline CI/CD"| helloworld
+    helloworld -->|"7. push image, modifie manifests"| helloworld_iac
+    platform_gitops -.->|"8. ArgoCD deploie"| helloworld_iac
+
+    cockpit -.orchestre.-> infra_iac
+    cockpit -.orchestre.-> platform_bootstrap
+    cockpit -.orchestre.-> platform_gitops
+    cockpit -.orchestre.-> toolbox
+```
