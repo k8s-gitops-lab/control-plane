@@ -1,0 +1,43 @@
+TODO — Initiative extensibilité / généricité
+=============================================
+Suivi détaillé : docs/backlog-extensibilite.md
+Chaque axe s'implémente dans son repo propriétaire (jamais depuis control-plane),
+commit + push sur les deux remotes (origin puis gitlab).
+
+[x] Axe 1 — Schéma d'inventaire versionné + validation CI     (platform-gitops)  FAIT 2026-07-08
+
+Phase 1 — fondations
+[ ] Axe 2 — Contrat de variables plateforme (dé-hardcoder domaine/registre)
+            Repos : platform-gitops, gitlab-projects-iac, ci-templates, infrastructure
+            - Noms bien connus : PLATFORM_DOMAIN, PLATFORM_REGISTRY, INTERNAL_GITLAB_HOST
+            - Injecter par canal natif (var TF, var CI de groupe, values Helm, patch Kustomize)
+            - Supprimer duplications : _PLATFORM_DEFAULTS, variables.tf gitlab_url,
+              REGISTRY_HOST/INTERNAL_GITLAB_HOST, domaine en dur (~20 fichiers/9 repos)
+
+Phase 2 — refactor CI (couplé, à faire ensemble)
+[ ] Axe 4 — ci-templates → composants CI versionnés (spec:inputs)
+            Repo : ci-templates
+            - include:component + inputs typés (defaults, validation)
+            - découper : build-kaniko, deploy-gitops, promote
+[ ] Axe 5 — Séquence d'environnements déclarée par app
+            Repos : platform-gitops + ci-templates
+            - déclarer la séquence par noms (ex. environments: [dev, staging, prod])
+            - consommer des deux côtés : rendu ArgoCD ET génération des jobs de deploy
+            - preprod cesse d'être un cas spécial (juste un env de la liste)
+
+Phase 3 — spikes (précédés d'une validation)
+[ ] Axe 3 — Générateur natif ArgoCD (réduire render-argocd-apps.py)
+            Repos : platform-cicd, platform-gitops
+            - git files generator sur argocd/apps/*.yaml + goTemplate
+            - trancher : ExternalSecrets/namespaces/projets natif vs scripté
+[ ] Axe 7 — Multi-tenancy GitLab (token de projet par app)
+            Repos : gitlab-projects-iac, platform-cicd
+            - remplacer le PAT root partagé par un project access token scopé par app
+            - plumbing de secrets CI
+
+Différé
+[ ] Axe 6 — Scaffolding d'app (app-template + toolbox)          (reporté 2026-07-08)
+
+Divers / dette relevée en passant
+[ ] Repousser tous les commits en attente vers le remote gitlab (injoignable ce jour)
+[ ] Faire dériver platform_inventory._normalize_app du JSON Schema (anti-dérive)
