@@ -277,6 +277,138 @@ def check_app_projects(values: dict[str, str], app: dict, token: str) -> tuple[b
     return True, f"projets {group}/{app['name']} et {group}/{app['name']}-iac présents"
 
 
+def _gitlab_file_content(domain: str, project_id: str, file_path: str, ref: str, token: str) -> bytes | None:
+    encoded = urllib.parse.quote(file_path, safe="")
+    status, body = gitlab_api(
+        domain,
+        f"/api/v4/projects/{project_id}/repository/files/{encoded}?ref={urllib.parse.quote(ref, safe='')}",
+        token=token)
+    if status != 200 or not isinstance(body, dict):
+        return None
+    try:
+        return base64.b64decode(body["content"])
+    except (KeyError, ValueError):
+        return None
+
+
+class _CIYamlLoader(yaml.SafeLoader):
+    """SafeLoader tolérant aux tags GitLab CI (!reference), chargés comme None."""
+
+
+_CIYamlLoader.add_constructor(None, lambda loader, node: None)
+
+
+def _yaml_component_includes(raw: bytes) -> set[str]:
+    """Références `include: component:` d'un YAML CI (multi-document accepté)."""
+    try:
+        docs = list(yaml.load_all(raw, Loader=_CIYamlLoader))
+    except yaml.YAMLError:
+        return set()
+    refs = set()
+    for doc in docs:
+        if not isinstance(doc, dict):
+            continue
+        includes = doc.get("include") or []
+        if isinstance(includes, dict):
+            includes = [includes]
+        if not isinstance(includes, list):
+            continue
+        refs |= {inc["component"] for inc in includes
+                 if isinstance(inc, dict) and isinstance(inc.get("component"), str)}
+    return refs
+
+
+def check_app_ci_components(values: dict[str, str], app: dict, token: str) -> tuple[bool, str]:
+    """Vérifie que les composants CI inclus par l'app existent au ref pointé.
+
+    Reproduit la résolution GitLab d'un `include: component:` : le fichier
+    templates/<nom>/template.yml (ou templates/<nom>.yml) doit exister dans
+    le projet du composant au tag/branche référencé, sinon le pipeline échoue
+    en « component content not found ». La vérification est récursive (les
+    composants inclus par les composants sont suivis) et signale les hôtes
+    étrangers (GitLab ne résout que les composants de sa propre instance).
+    Lit le .gitlab-ci.yml de la branche par défaut du projet GitLab de l'app
+    (celui qui fait foi pour la CI).
+    """
+    domain = values["GITLAB_DOMAIN"]
+    group = app.get("group", "root")
+    project = f"{group}/{app['name']}"
+    project_id = urllib.parse.quote(project, safe="")
+
+    status, body = gitlab_api(domain, f"/api/v4/projects/{project_id}", token=token)
+    if status != 200 or not isinstance(body, dict):
+        return False, f"projet {project} illisible (HTTP {status})"
+    default_branch = body.get("default_branch") or "main"
+
+    status, body = gitlab_api(
+        domain,
+        f"/api/v4/projects/{project_id}/repository/files/.gitlab-ci.yml?ref={default_branch}",
+        token=token)
+    if status == 404:
+        return True, f"{project} : pas de .gitlab-ci.yml sur {default_branch}"
+    if status != 200 or not isinstance(body, dict):
+        return False, f".gitlab-ci.yml de {project} illisible (HTTP {status})"
+    try:
+        raw = base64.b64decode(body["content"])
+    except (KeyError, ValueError):
+        return False, f".gitlab-ci.yml de {project} invalide"
+
+    queue = sorted(_yaml_component_includes(raw))
+    if not queue:
+        return True, f"{project} : aucun composant CI inclus"
+
+    known_hosts = ("$CI_SERVER_FQDN", f"gitlab.{domain}")
+    seen: set[str] = set()
+    bad = []
+    resolved = 0
+    while queue:
+        component = queue.pop(0)
+        if component in seen:
+            continue
+        seen.add(component)
+        location, _, ref = component.partition("@")
+        segments = location.split("/")
+        if not ref or len(segments) < 3:
+            bad.append(f"{component} (référence malformée)")
+            continue
+        # <fqdn>/<chemin/du/projet>/<nom-du-composant>@<ref>
+        if segments[0] not in known_hosts:
+            bad.append(f"{component} (hôte {segments[0]} : GitLab ne résout que "
+                       "les composants de sa propre instance)")
+            continue
+        comp_project, comp_name = "/".join(segments[1:-1]), segments[-1]
+        comp_id = urllib.parse.quote(comp_project, safe="")
+        if ref == "~latest":
+            status, releases = gitlab_api(
+                domain, f"/api/v4/projects/{comp_id}/releases?per_page=1", token=token)
+            if status != 200 or not releases:
+                bad.append(f"{comp_project}/{comp_name}@~latest (aucune release)")
+            continue
+        content = None
+        for path in (f"templates/{comp_name}/template.yml", f"templates/{comp_name}.yml"):
+            content = _gitlab_file_content(domain, comp_id, path, ref, token)
+            if content is not None:
+                break
+        if content is None:
+            tag_status, _ = gitlab_api(
+                domain,
+                f"/api/v4/projects/{comp_id}/repository/tags/{urllib.parse.quote(ref, safe='')}",
+                token=token)
+            if tag_status == 200:
+                bad.append(f"{comp_project}/{comp_name}@{ref} (tag présent mais template absent)")
+            else:
+                _, tags = gitlab_api(
+                    domain, f"/api/v4/projects/{comp_id}/repository/tags?per_page=1", token=token)
+                latest = tags[0].get("name", "?") if isinstance(tags, list) and tags else "aucun"
+                bad.append(f"{comp_project}/{comp_name}@{ref} (ref inexistant, dernier tag : {latest})")
+            continue
+        resolved += 1
+        queue.extend(sorted(_yaml_component_includes(content) - seen))
+    if bad:
+        return False, f"composants CI introuvables : {', '.join(bad)}"
+    return True, f"{resolved} composant(s) CI résolus (imbriqués compris) sur {default_branch}"
+
+
 def check_app_pipeline(values: dict[str, str], app: dict, token: str) -> tuple[bool, str]:
     domain = values["GITLAB_DOMAIN"]
     group = app.get("group", "root")

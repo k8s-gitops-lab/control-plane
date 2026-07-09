@@ -4,8 +4,9 @@
 Vérifie les critères d'acceptation observables du PRD : cluster Ready,
 GitLab et ArgoCD répondent, toutes les Applications ArgoCD sont
 Synced/Healthy, le secret GHCR est en place, le PAT git-credential est
-valide, et pour chaque app de l'inventaire les projets GitLab existent et
-le dernier pipeline est vert.
+valide, et pour chaque app de l'inventaire les projets GitLab existent,
+les composants CI inclus pointent des tags qui existent, et le dernier
+pipeline est vert.
 
 Usage :
   python3 scripts/platform-verify.py [--quiet]
@@ -60,6 +61,7 @@ def main() -> None:
             run(f"app/{app['name']}", False, "check sauté : PAT GitLab indisponible")
             continue
         run(f"app/{app['name']}/projets", *pc.check_app_projects(values, app, token))
+        run(f"app/{app['name']}/ci-components", *pc.check_app_ci_components(values, app, token))
         run(f"app/{app['name']}/pipeline", *pc.check_app_pipeline(values, app, token))
 
     failed = [label for label, ok, _ in results if not ok]
