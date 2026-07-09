@@ -30,7 +30,9 @@ repos dans cet ordre.
 5. Le Terraform de `gitlab-projects-iac` (applique automatiquement par Flux)
    cree ou met a jour les projets GitLab, la protection de branches et les
    miroirs GitHub.
-6. `ci-templates` definit la chaine CI/CD consommee par `helloworld`.
+6. `ci-templates` definit la chaine CI/CD consommee par `helloworld`, en
+   s'appuyant sur les composants amont to-be-continuous (miroir local, voir
+   ci-dessous).
 7. `helloworld` pousse des images et modifie `helloworld-iac`.
 8. ArgoCD deploie `helloworld-iac` dans les namespaces d'environnement.
 
@@ -48,6 +50,15 @@ contenu (donnees, code, pipeline).
 (`repoURL`). C'etait un couplage accidentel sans raison fonctionnelle :
 `repoURL` est desormais une variable ansible (`gitops_repo_url`, template
 `ansible.builtin.template`), donc cette arete a disparu du graphe.
+
+Une dependance externe fait partie du graphe : le groupe GitLab local
+`to-be-continuous` (projets `docker`, `semantic-release`...) est un **miroir**
+de `gitlab.com/to-be-continuous`, cree et rafraichi par le Terraform de
+`gitlab-projects-iac` (GitLab ne resout les `include:component` que sur sa
+propre instance). `ci-templates` inclut ces composants amont a version figee
+(`@6.1.0` pour docker) — c'est le seul point de mise a jour pour toutes les
+apps. Ce miroir est critique pour tout build applicatif : sans lui, aucun
+pipeline `build-docker` ne passe.
 
 Il reste une paire de repos avec une dependance dans les deux sens :
 `gitlab-projects-iac` <-> `platform-gitops`. Ce n'est pas une dette a
@@ -74,6 +85,7 @@ flowchart RL
     ci_templates["ci-templates"]
     helloworld["helloworld"]
     helloworld_iac["helloworld-iac"]
+    tbc["to-be-continuous\n(miroir GitLab local de gitlab.com/to-be-continuous)"]
 
     platform_bootstrap -->|"requiert un cluster K8s"| infra_iac
     platform_gitops -.->|"necessite ArgoCD installe"| platform_bootstrap
@@ -84,6 +96,8 @@ flowchart RL
     helloworld -->|"projet GitLab cree/mirrore par"| gitlab_projects_iac
     helloworld_iac -->|"projet GitLab cree/mirrore par"| gitlab_projects_iac
     platform_gitops -.->|"confort : pipeline CI de regeneration heberge par"| gitlab_projects_iac
+    tbc -->|"miroir cree/rafraichi par"| gitlab_projects_iac
+    ci_templates -->|"include:component docker/semantic-release@version figee de"| tbc
     helloworld -->|"consomme le pipeline de"| ci_templates
     helloworld_iac -->|"manifests mis a jour par le pipeline de"| helloworld
     helloworld_iac -.->|"deploye par ArgoCD depuis"| platform_gitops

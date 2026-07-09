@@ -26,7 +26,8 @@ les noms de dépôts ci-dessous omettent donc ce préfixe par souci de lisibilit
   déclarés dans Ansible pour que la configuration cluster bas niveau soit
   reproductible avant le bootstrap ArgoCD.
 - **helloworld** : application de référence implémentant le pattern CI/CD
-  décrit dans la spec fonctionnelle : build (Kaniko) → push GHCR →
+  décrit dans la spec fonctionnelle : build (Buildah, via les composants
+  to-be-continuous mirrorés en local) → push GHCR →
   déploiement (commit GitOps sur les manifests, synchronisé par ArgoCD). Le
   code applicatif et les manifests k8s sont scindés en **deux dépôts GitLab
   séparés** :

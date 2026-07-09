@@ -1,5 +1,11 @@
 # Règles de travail — poc-devops
 
+## Gouvernance du développement
+
+Toute contribution respecte les trois axes de maîtrise — produit, code,
+architecture — décrits dans `AGENTS.md`, section « Gouvernance du
+développement » (qui fait foi).
+
 ## Workflow Git
 
 Ne jamais modifier les fichiers directement dans l'interface GitLab (éditeur
@@ -39,3 +45,14 @@ ce cas, pousser sur GitHub quand même et repousser sur GitLab plus tard).
 Si un commit est créé côté GitLab (ex. merge d'une MR), il doit aussi être
 répercuté sur GitHub : récupérer la branche depuis `gitlab` et la pousser
 vers `origin` avant de considérer le travail terminé.
+
+## OpenWiki
+
+This repository has documentation located in the /openwiki directory.
+
+Start here:
+- [OpenWiki quickstart](openwiki/quickstart.md)
+
+OpenWiki includes repository overview, architecture notes, workflows, domain concepts, operations, integrations, testing guidance, and source maps.
+
+When working in this repository, read the OpenWiki quickstart first, then follow its links to the relevant architecture, workflow, domain, operation, and testing notes.

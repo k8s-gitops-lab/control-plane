@@ -1,16 +1,26 @@
-# Backlog — extensibilité / généricité du produit
+# Backlog produit
+
+> Backlog général du produit (généralisé le 2026-07-09, en application de la
+> règle « Gouvernance du développement » d'`AGENTS.md`). Les **idées
+> produit** passent ici *avant* implémentation ; les **correctifs** et
+> l'entretien s'y tracent au plus tard au moment du commit — pas de fiche
+> préalable exigée pour un bug réglé en séance. Chaque tâche est
+> implémentée **dans son repo propriétaire**,
+> jamais depuis `cockpit` (cf. `AGENTS.md`). Deux volets : l'initiative
+> extensibilité (sections « Axe N » ci-dessous) et l'entretien courant
+> (section en fin de fichier).
+
+## Initiative extensibilité / généricité
 
 > Initiative transverse décidée le 2026-07-08 : rendre le produit plus
 > extensible et instanciable ailleurs (autre domaine, autre registre,
-> plusieurs équipes). Ce fichier suit l'avancement ; chaque axe est
-> implémenté **dans son repo propriétaire**, jamais depuis `cockpit`
-> (cf. `AGENTS.md`). L'état actuel ci-dessous a été vérifié sur le code —
+> plusieurs équipes). L'état ci-dessous a été vérifié sur le code —
 > plusieurs axes sont déjà partiellement en place. Les fiches de tâches
 > détaillées (`docs/tasks-extensibilite.md`) et le pense-bête `TODO.txt` ont
 > été supprimés le 2026-07-08 car redondants avec ce fichier ; les points
 > clés (pièges, critères de vérification, dette transverse) ont été repliés
-> dans les sections ci-dessous. Ce fichier est désormais l'unique support de
-> suivi de l'initiative.
+> dans les sections ci-dessous. Cette partie du fichier est l'unique support
+> de suivi de l'initiative.
 
 ## Tableau de suivi
 
@@ -184,6 +194,30 @@ naissent conformes au pattern. **À traiter un autre jour** (décision
 2026-07-08).
 
 ---
+
+## Entretien courant
+
+Tâches hors initiative : montées de version, pins d'images, correctifs de
+fond. Les montées de version des composants font partie de l'entretien
+normal de la plateforme (cf. `AGENTS.md`).
+
+- [ ] Revue de gouvernance trimestrielle (prochaine : 2026-10) — rejouer la
+  revue des trois axes d'`AGENTS.md` : PRD vs réalité, complexité du code,
+  `repo-map.md` vs dépendances réelles, fraîcheur des composants. Première
+  revue faite le 2026-07-09 (4 écarts corrigés).
+- [ ] Activer Dependabot (ou Renovate) sur l'org GitHub `k8s-gitops-lab`
+  pour signaler les montées de version (Dockerfiles, charts Helm) — le
+  signal alimente cette section ; sans lui, « versions récentes » ne se
+  produit pas tout seul.
+- [ ] Pinner et rafraîchir les images MinIO du chart GitLab (reporté le
+  2026-07-09) — repo `platform-gitops` : `minio/minio` et `minio/mc` sans
+  tag dans `argocd/platform/gitlab/values-local.yaml`, et
+  `minio/mc:RELEASE.2022-09-16T09-16-47Z` (4 ans) dans
+  `argocd/platform/gitlab-minio-patch/`. Vérifier au passage si le chart
+  GitLab récent permet de se passer du patch minio.
+- [x] Pinner les images applicatives de `helloworld` (fait le 2026-07-09) :
+  `rust:1.88-slim` → `rust:1.96-slim-bookworm` (aligné glibc avec le runtime
+  `debian:bookworm-slim`), `nginx:alpine` → `nginx:1.31-alpine`.
 
 ## Dette transverse
 

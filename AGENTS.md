@@ -34,6 +34,35 @@ make gitlab-terraform-credentials # Créer/rotater le PAT GitLab Terraform
 make argocd-status     # État ArgoCD
 ```
 
+## Gouvernance du développement
+
+Le développeur de plateforme garde la maîtrise sur trois axes ; tout
+développement (humain ou agent) doit s'y conformer :
+
+1. **Maîtrise du produit** — ce qui est développé respecte la définition du
+   produit ([`docs/prd.md`](docs/prd.md)) et est tracé dans le backlog
+   ([`docs/backlog.md`](docs/backlog.md)). Pas de développement opportuniste
+   hors périmètre : une **idée produit** passe par une entrée au backlog
+   *avant* d'être implémentée ; un **correctif** ou une tâche d'entretien se
+   trace au backlog au plus tard au moment du commit.
+2. **Maîtrise du code** — le code produit reste simple, fiable et pas trop
+   complexe : préférer la solution la plus simple qui fonctionne, éviter
+   l'abstraction prématurée, et ne pas ajouter de mécanisme (option, couche,
+   généricité) sans besoin avéré. Une évolution est considérée fiable quand
+   `make validate` et `make platform-verify` passent.
+3. **Maîtrise de l'architecture** — les dépendances entre repos restent
+   celles décrites dans [`docs/repo-map.md`](docs/repo-map.md) (toute
+   nouvelle dépendance inter-repos se justifie et se documente là), et les
+   composants utilisés restent **maintenus et supportés**, dans des versions
+   raisonnablement récentes : pas de composant abandonné, et les montées de
+   version font partie de l'entretien normal de la plateforme (suivies dans
+   la section « Entretien courant » du backlog).
+
+Cette règle s'applique depuis tous les repos du workspace (chaque
+`AGENTS.md` y renvoie) et se vérifie par une **revue de gouvernance
+périodique** (trimestrielle, suivie au backlog) : PRD vs réalité, complexité
+du code, carte des dépendances et fraîcheur des composants.
+
 ## Ordre de préférence pour le déploiement
 
 Quand plusieurs mécanismes sont possibles pour une même tâche de déploiement,
@@ -94,3 +123,14 @@ Ne jamais modifier les fichiers directement dans GitLab. Toujours :
 - Ne pas hardcoder des valeurs de versions dans les Makefiles ; les lire depuis
   les variables exportées par `export-env.py`.
 - Ne pas committer `.cockpit.env` (contient des chemins locaux absolus).
+
+## OpenWiki
+
+This repository has documentation located in the /openwiki directory.
+
+Start here:
+- [OpenWiki quickstart](openwiki/quickstart.md)
+
+OpenWiki includes repository overview, architecture notes, workflows, domain concepts, operations, integrations, testing guidance, and source maps.
+
+When working in this repository, read the OpenWiki quickstart first, then follow its links to the relevant architecture, workflow, domain, operation, and testing notes.
