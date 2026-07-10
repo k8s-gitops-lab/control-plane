@@ -342,10 +342,26 @@ changement », puis bascule en `approvePlan: auto` — `gitlab-iac-com` se
 comporte maintenant comme `gitlab-iac`, en parallèle, sans rien retirer
 côté local.
 
+**Phase 3 (repo-creds ArgoCD, validation isolée)** faite le 2026-07-10 :
+secret repository ArgoCD `gitlabcom-helloworld-iac-repo` (namespace
+`argocd`, même forme que `gitlab-helloworld-iac-repo` généré localement
+par l'`ExternalSecret`) créé dans `flux-secrets/` et pointé sur
+`https://gitlab.com/k8s-gitops-lab/hello-groupe/helloworld-iac.git` via le
+PAT. Connectivité vérifiée directement en git (`git ls-remote` avec les
+mêmes credentials oauth2/PAT que le secret) : HEAD == `gitlabcom/main`
+(`41028ca`), comme déjà validé en Phase 1. Purement additif —
+`argocd/generated/apps/helloworld/app-data.yaml` (source réelle des
+Applications ArgoCD `helloworld`, dérivée par convention depuis
+`argocd/apps/helloworld.yaml`, pas encore éditable via un simple champ
+`repoURL`, cf. axe 2 de l'initiative extensibilité) n'a pas été touché :
+aucune Application déployée ne bascule sur gitlab.com par ce commit.
+
 **Reste à faire (phases suivantes, séquencement à détailler)** : SSO Dex,
-runner, repo-creds ArgoCD, séquencement bootstrap, miroir
-`to-be-continuous`, registry — aucun consommateur réel du GitLab local
-n'est encore basculé.
+runner, séquencement bootstrap, miroir `to-be-continuous`, registry — et,
+pour clore réellement le point repo-creds, le cutover du champ `repoURL`
+consommé par `app-data.yaml` (aujourd'hui dérivé par convention vers le
+GitLab local, cf. axe 2) vers gitlab.com. Aucun consommateur réel du
+GitLab local n'est encore basculé.
 
 **Point d'attention opérationnel** : le poste de développement a par
 intermittence un problème d'accès TLS au GitLab local
