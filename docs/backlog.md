@@ -314,8 +314,22 @@ utilisateur payante pour valider certains comportements SaaS avant coupure.
 Bascule à faire en parallèle (nouveau flux gitlab.com validé avant retrait
 de l'ancien), pas en remplacement direct.
 
-**Statut** : démarré le 2026-07-10 (cartographie faite ; séquençage détaillé
-et implémentation en cours, voir plan de session).
+**Statut** : Phase 1 (structure minimale + validation du mirroring) faite le
+2026-07-10 : module `gitlab-projects-iac/terraform-gitlabcom/` appliqué
+(groupe racine `k8s-gitops-lab` public — création manuelle puis import,
+création de groupe top-level bloquée via API sur ce compte — + sous-groupes
+`infra`/`shared-ci`/`hello-groupe` + 4 projets vides) ; remote `gitlabcom`
+ajouté et poussé avec succès sur les 4 repos concernés
+(`platform-gitops`, `ci-templates`, `helloworld`, `helloworld-iac`) —
+`main` == `gitlabcom/main` vérifié sur les quatre. Volontairement minimal
+(pas de variables CI/CD, pas de branch protection, pas d'utilisateur de
+service, pas de `gitlab_project_mirror`, cf. commentaire du module).
+
+**Reste à faire (phases suivantes, séquencement à détailler)** : les 7
+points de la cartographie de dépendances ci-dessus restent entiers (SSO
+Dex, PAT Terraform, runner, repo-creds ArgoCD, séquencement bootstrap,
+miroir `to-be-continuous`, registry) — Phase 1 ne fait que prouver que le
+push fonctionne, elle ne bascule aucun consommateur réel du GitLab local.
 
 ---
 
