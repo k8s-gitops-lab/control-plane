@@ -1,10 +1,18 @@
 #!/usr/bin/env python3
-# Supprime définitivement le groupe gitlab.com k8s-gitops-lab (et tout ce
-# qu'il contient : sous-groupes, projets, issues, MR, pipelines, state
-# Terraform) pour permettre un bootstrap reproductible depuis zéro --
-# décision du 2026-07-10 (cf. cockpit/docs/backlog.md) : le state Terraform
-# de gitlab-iac-com reste sur backend Kubernetes précisément pour ne pas
+# Supprime le groupe gitlab.com k8s-gitops-lab (et tout ce qu'il contient :
+# sous-groupes, projets, issues, MR, pipelines, state Terraform) pour
+# permettre un bootstrap reproductible depuis zéro -- décision du
+# 2026-07-10 (cf. cockpit/docs/backlog.md) : le state Terraform de
+# gitlab-iac-com reste sur backend Kubernetes précisément pour ne pas
 # dépendre d'un projet gitlab.com que ce script vient de supprimer.
+#
+# Note API : gitlab.com applique une rétention de 30 jours avant purge
+# définitive des groupes top-level (l'option permanently_remove n'est
+# utilisable que sur les sous-groupes déjà planifiés pour suppression --
+# cf. doc API groups). Un simple DELETE suffit néanmoins pour un bootstrap
+# immédiat : le groupe planifié pour suppression est aussitôt renommé, ce
+# qui libère le chemin 'k8s-gitops-lab' pour une recréation immédiate ; le
+# contenu de l'ancien groupe est purgé en arrière-plan après 30 jours.
 #
 # Usage :
 #   GITLAB_TOKEN=<pat scope api> python3 scripts/gitlab-reset.py [--yes]
@@ -52,21 +60,23 @@ def main() -> None:
 
     if "--yes" not in sys.argv:
         reponse = input(
-            f"Ceci va supprimer DÉFINITIVEMENT le groupe '{GROUP_PATH}' "
+            f"Ceci va planifier la suppression du groupe '{GROUP_PATH}' "
             f"(id {group['id']}) et tout son contenu sur gitlab.com "
-            f"(sous-groupes, projets, issues, MR, pipelines). Continuer ? [y/N] "
+            f"(sous-groupes, projets, issues, MR, pipelines). Le chemin "
+            f"'{GROUP_PATH}' sera libéré immédiatement pour recréation ; "
+            f"le contenu sera purgé définitivement après 30 jours. "
+            f"Continuer ? [y/N] "
         )
         if reponse.strip().lower() != "y":
             sys.exit("Annulé.")
 
-    status, result = api(
-        f"/groups/{group['id']}?permanently_remove=true&full_path={GROUP_PATH}",
-        token,
-        method="DELETE",
-    )
+    status, result = api(f"/groups/{group['id']}", token, method="DELETE")
     if status not in (200, 202, 204):
         sys.exit(f"Échec de suppression : {status} {result}")
-    print(f"Groupe '{GROUP_PATH}' (id {group['id']}) supprimé.")
+    print(
+        f"Groupe '{GROUP_PATH}' (id {group['id']}) planifié pour suppression "
+        f"(purge définitive sous 30 jours ; le chemin est déjà libre)."
+    )
 
 
 if __name__ == "__main__":
