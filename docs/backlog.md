@@ -551,6 +551,14 @@ de ce qui est déjà fait (miroir de contenu). Le mécanisme de cutover
 (`argocdRepoURL` + préfixe de groupe + `CI_TEMPLATES_PROJECT_PATH`) est
 posé et réutilisable pour toute future app.
 
+**Dette découverte, non traitée** : `cockpit/scripts/gitlab-git-creds.py`
++ cible Make `gitlab-git-credentials` (PAT root, git-credential local) et
+probablement des hypothèses dans `scripts/platform-verify.py` (« GitLab,
+ArgoCD Synced/Healthy... ») ciblent encore l'instance locale
+décommissionnée — `make platform-up`/`platform-provision` les appellent
+toujours. Repéré en vérifiant la synchro GitHub/gitlab.com le 2026-07-10,
+pas encore corrigé.
+
 ---
 
 ## Entretien courant

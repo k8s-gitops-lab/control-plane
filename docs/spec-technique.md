@@ -151,8 +151,8 @@ l'orchestration locale (`bootstrap.py`, `export-env.py`,
 `clone-github-org.sh` et `commit-*.sh` — les deux scripts `commit-*`
 encodent des directions de vérité opposées, voir
 [`source-control.md`](source-control.md)). Les scripts de bootstrap plateforme
-(`gitlab-tf-credentials.py`, `render-argocd-apps.py`, `gitlab-runner-token.py`,
-`gitlab-dex-oauth-app.py`) vivent dans `platform-bootstrap/scripts/` et sont
+(`render-argocd-apps.py`, `gitlab-runner-token-com.py`) vivent dans
+`platform-bootstrap/scripts/` et sont
 appelés par `cockpit` via `make -C ../platform-bootstrap <cible>` (voir
 `Makefile`). Les utilitaires d'administration applicative
 (`render-gitlab-projects.py`) vivent dans `toolbox/scripts/` et s'appellent
