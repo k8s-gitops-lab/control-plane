@@ -325,11 +325,36 @@ ajouté et poussé avec succès sur les 4 repos concernés
 (pas de variables CI/CD, pas de branch protection, pas d'utilisateur de
 service, pas de `gitlab_project_mirror`, cf. commentaire du module).
 
-**Reste à faire (phases suivantes, séquencement à détailler)** : les 7
-points de la cartographie de dépendances ci-dessus restent entiers (SSO
-Dex, PAT Terraform, runner, repo-creds ArgoCD, séquencement bootstrap,
-miroir `to-be-continuous`, registry) — Phase 1 ne fait que prouver que le
-push fonctionne, elle ne bascule aucun consommateur réel du GitLab local.
+**Phase 2 (PAT + Terraform gitlab.com géré par GitOps)** faite le
+2026-07-10 : PAT `terraform-controller` créé manuellement par l'opérateur
+sur gitlab.com (pas d'automatisation root possible côté SaaS, contrairement
+à `gitlab-tf-credentials.py` sur l'instance locale), stocké chiffré SOPS
+dans `platform-gitops/flux-secrets/gitlabcom-credentials.yaml`. Nouveau
+`Terraform` CR `gitlab-iac-com` (`platform-gitops/argocd/platform/
+tf-controller/terraform-gitlab-com.yaml`), backend distinct
+(`secretSuffix: gitlab-projects-iac-com`) pour ne pas toucher au CR
+`gitlab-iac` existant (instance locale). Le state de l'apply manuel Phase 1
+a été **importé** dans le secret backend du controller (`tfstate-default-
+gitlab-projects-iac-com`, pré-seedé à partir du `terraform.tfstate` local
+avant le premier plan) pour éviter que tofu-controller ne tente de
+recréer le groupe/projets déjà existants. Premier plan vérifié « sans
+changement », puis bascule en `approvePlan: auto` — `gitlab-iac-com` se
+comporte maintenant comme `gitlab-iac`, en parallèle, sans rien retirer
+côté local.
+
+**Reste à faire (phases suivantes, séquencement à détailler)** : SSO Dex,
+runner, repo-creds ArgoCD, séquencement bootstrap, miroir
+`to-be-continuous`, registry — aucun consommateur réel du GitLab local
+n'est encore basculé.
+
+**Point d'attention opérationnel** : le poste de développement a par
+intermittence un problème d'accès TLS au GitLab local
+(`gitlab.192.168.33.100.nip.io`, cf. [[project-gitlab-lab-access]]) qui a
+empêché plusieurs push vers le remote `gitlab` de `platform-gitops`
+pendant cette session (poussés sur `origin`/GitHub uniquement en
+attendant) — à repousser vers `gitlab` dès que l'accès revient, sous
+peine que le miroir GitLab→GitHub écrase `origin` (cf. incident
+2026-07-09 documenté dans `AGENTS.md`/`CLAUDE.md`).
 
 ---
 
