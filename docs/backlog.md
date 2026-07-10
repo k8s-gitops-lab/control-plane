@@ -378,12 +378,32 @@ route Gateway dédiée, tous retirés. Login ArgoCD `admin` local seul
 mécanisme d'accès restant (déjà le cas en pratique, `admin.enabled` jamais
 désactivé).
 
-**Reste à faire (phases suivantes, séquencement à détailler)** : runner,
+**Phase 5 (runner autonome gitlab.com)** faite le 2026-07-10 : nouvelle
+Application `gitlab-runner-com` (`platform-gitops`, chart officiel
+`gitlab-runner` 0.88.2 — même version que le sous-chart du GitLab local,
+cohérent avec l'image helper arm64 déjà pinnée), namespace dédié
+`gitlab-runner`, en parallèle du runner local (rien retiré côté
+`platform/gitlab/values-local.yaml`). Token créé par le nouveau
+`platform-bootstrap/scripts/gitlab-runner-token-com.py`
+(`runner_type: group_type`, scope groupe `k8s-gitops-lab`, via le PAT —
+`instance_type` confirmé impossible sur gitlab.com, pas admin d'instance
+SaaS). CA Zscaler montée via `certsSecretName` pour que le process
+`gitlab-runner` joigne gitlab.com (même contournement que Grafana Alloy) ;
+les pods de job restent couverts par `CUSTOM_CA_CERTS` côté
+`ci-templates`, mécanisme déjà en place. **Validé en direct** : pod
+`1/1 Running`, logs `Runner registered successfully` /
+`Verifying runner... is valid`, runner confirmé `online` /
+`job_execution_status: idle` via l'API gitlab.com (id `54241190`,
+description `k3d-poc-devops-com`) — TLS et auth fonctionnent bout en
+bout, aucune pipeline réelle basculée dessus pour l'instant.
+
+**Reste à faire (phases suivantes, séquencement à détailler)** :
 séquencement bootstrap, miroir `to-be-continuous`, registry — et, pour
 clore réellement le point repo-creds, le cutover du champ `repoURL`
 consommé par `app-data.yaml` (aujourd'hui dérivé par convention vers le
-GitLab local, cf. axe 2) vers gitlab.com. Aucun consommateur réel du
-GitLab local n'est encore basculé.
+GitLab local, cf. axe 2) vers gitlab.com, qui est aussi ce qui ferait
+réellement transiter une pipeline sur le nouveau runner. Aucun
+consommateur réel du GitLab local n'est encore basculé.
 
 **Dette résiduelle Phase 4** : le pod `argocd-dex-server` live porte encore
 le patch impératif de la Phase 4 initiale (volume/`SSL_CERT_FILE` monté
