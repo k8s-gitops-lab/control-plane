@@ -567,6 +567,28 @@ credentials` (cible manuelle, hors séquence automatique) appelait
 `make -C platform-bootstrap gitlab-tf-credentials`, une cible supprimée
 en Phase 7 — cible cockpit retirée.
 
+**Dette ci-dessus corrigée le 2026-07-10** : équivalent gitlab.com construit
+plutôt que suppression de l'étape. `platform.yml` (`platform.gitlab.url` /
+`.group` remplacent `namespace`/`internalHost`), `scripts/platform_checks.py`
+(`gitlab_api`/`gitlab_pat_status` prennent une URL de base au lieu d'un
+`domain` suffixé `gitlab.`, checks applicatifs préfixés par le groupe racine
+`k8s-gitops-lab`) et `scripts/gitlab-git-creds.py` (ne provisionne plus de
+PAT root depuis un secret K8s local ; stocke dans `git-credential` le
+`GITLAB_TOKEN` fourni par l'opérateur — même convention que
+`gitlab-reset.py`/`platform-destroy`) ont été mis à jour en conséquence,
+ainsi que `platform-verify.py`. Le check `gitlab-web` (sonde non
+authentifiée `/users/sign_in`) a été retiré : gitlab.com renvoie 403 sur
+cette route sans navigateur, et l'unique route qui répond de façon fiable
+(`/api/v4/version`) exige de toute façon le même PAT que `gitlab-pat` —
+la sonde était devenue redondante, pas remplaçable à l'identique. Le
+Makefile a aussi perdu `gitlab-password` (appelait une cible
+`platform-bootstrap` déjà supprimée en Phase 7, repéré au passage) et ne
+transmet plus `GITLAB_NAMESPACE` à `platform-bootstrap` (paramètre déjà
+mort côté cible receveuse). Vérifié en conditions réelles : `make
+gitlab-git-credentials` et `make platform-verify` interrogent désormais
+gitlab.com et réutilisent la credential déjà présente dans le
+`git-credential` de l'opérateur.
+
 **State Terraform de `gitlab-iac-com` — backend Kubernetes conservé**
 (décision du 2026-07-10) : essayé un backend HTTP GitLab-managed natif
 (projet `infra/platform-gitops`, migration vérifiée « No drift », cf.

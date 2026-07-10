@@ -9,7 +9,7 @@ START_AT ?=
 STOP_AFTER ?=
 SNAPSHOT_NAME ?= cluster-ready
 
-.PHONY: help validate env vm-images-build vm-images-add vm-images cluster-up cluster-from-images snapshot-cluster restore-cluster platform-up platform-provision platform-from-snapshot platform-bootstrap platform-bootstrap-status platform-bootstrap-reset platform-down platform-destroy platform-verify argocd-password gitlab-password argocd-status ghcr-token-init ghcr-pull-secret-wait gitlab-reset gitlab-git-credentials gitlab-projects-wait argocd-apps-wait
+.PHONY: help validate env vm-images-build vm-images-add vm-images cluster-up cluster-from-images snapshot-cluster restore-cluster platform-up platform-provision platform-from-snapshot platform-bootstrap platform-bootstrap-status platform-bootstrap-reset platform-down platform-destroy platform-verify argocd-password argocd-status ghcr-token-init ghcr-pull-secret-wait gitlab-reset gitlab-git-credentials gitlab-projects-wait argocd-apps-wait
 
 help: ## Affiche cette aide
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-24s\033[0m %s\n", $$1, $$2}'
@@ -80,7 +80,6 @@ platform-bootstrap: ## Bootstrap ArgoCD et la plateforme via ../platform-bootstr
 	$(MAKE_BIN) -C "$$PLATFORM_REPO_ROOT" bootstrap \
 	  ARGOCD_VERSION="$$ARGOCD_VERSION" \
 	  GITLAB_DOMAIN="$$GITLAB_DOMAIN" \
-	  GITLAB_NAMESPACE="$$GITLAB_NAMESPACE" \
 	  ARGOCD_NAMESPACE="$$ARGOCD_NAMESPACE" \
 	  START_AT="$(START_AT)" \
 	  STOP_AFTER="$(STOP_AFTER)"
@@ -93,12 +92,10 @@ gitlab-reset: ## ACTION DESTRUCTIVE : supprime le groupe gitlab.com k8s-gitops-l
 	@echo "==> cockpit: gitlab-reset -> scripts/gitlab-reset.py"; \
 	python3 scripts/gitlab-reset.py
 
-gitlab-git-credentials: ## Verifie le PAT GitLab root stocke dans git-credential, le (re)cree si absent/invalide/proche expiration
+gitlab-git-credentials: ## Verifie le PAT gitlab.com (GITLAB_TOKEN) stocke dans git-credential, le (re)stocke si absent/invalide/proche expiration
 	@$(ENV); \
 	echo "==> cockpit: gitlab-git-credentials -> scripts/gitlab-git-creds.py"; \
-	GITLAB_URL="https://gitlab.$$GITLAB_DOMAIN" \
-	  GITLAB_NAMESPACE="$$GITLAB_NAMESPACE" \
-	  INTERNAL_GITLAB_HOST="$$INTERNAL_GITLAB_HOST" \
+	GITLAB_URL="$$GITLAB_URL" \
 	  python3 scripts/gitlab-git-creds.py
 
 gitlab-projects-wait: ## Attend que le Terraform gitlab-iac (tf-controller) ait cree les projets GitLab applicatifs
@@ -131,12 +128,6 @@ argocd-password: ## Affiche le mot de passe admin initial d'ArgoCD
 	echo "==> cockpit: argocd-password -> make -C $$PLATFORM_REPO_ROOT argocd-password"; \
 	$(MAKE_BIN) -C "$$PLATFORM_REPO_ROOT" argocd-password \
 	  ARGOCD_NAMESPACE="$$ARGOCD_NAMESPACE"
-
-gitlab-password: ## Affiche le mot de passe root initial de GitLab
-	@$(ENV); \
-	echo "==> cockpit: gitlab-password -> make -C $$PLATFORM_REPO_ROOT gitlab-password"; \
-	$(MAKE_BIN) -C "$$PLATFORM_REPO_ROOT" gitlab-password \
-	  GITLAB_NAMESPACE="$$GITLAB_NAMESPACE"
 
 ghcr-token-init: ## Genere/chiffre platform-gitops/flux-secrets/ghcr-pull-secret.yaml a partir d'un compte + PAT GitHub (cle age locale creee si absente) ; committer/pousser platform-gitops ensuite
 	CONFIG="$(CONFIG)" python3 scripts/ghcr-token-init.py

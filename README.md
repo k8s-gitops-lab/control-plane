@@ -68,8 +68,7 @@ Une fois la commande terminée :
   GitLab, Applications ArgoCD Synced/Healthy, secret GHCR, PAT, projets et
   pipelines des apps de l'inventaire).
 - `make argocd-status` : état de synchronisation ArgoCD.
-- `make argocd-password` / `make gitlab-password` : récupérer les mots de
-  passe admin initiaux.
+- `make argocd-password` : récupérer le mot de passe admin initial.
 - La plateforme est prête à accueillir des projets applicatifs (Parcours 2).
 
 Pour le détail de chaque étape :
@@ -82,7 +81,8 @@ Pour le détail de chaque étape :
 
 Prérequis : la plateforme est déjà en place (Parcours 1 déjà réalisé par
 l'opérateur) et `make gitlab-git-credentials` a été exécuté au moins une fois
-(credentials git stockées pour l'hôte GitLab interne).
+(PAT gitlab.com stocké dans git-credential, `GITLAB_TOKEN` requis la première
+fois).
 
 1. Écrire le code de l'app (`<app>/`) et son dépôt de manifests
    (`<app>-iac/`), en réutilisant `ci-templates` pour la CI (voir
@@ -147,10 +147,11 @@ platform-bootstrap-status` pour les consulter) :
   `argocd` ; External Secrets Operator le distribue ensuite en continu sous
   le nom `ghcr-pull` dans chaque namespace applicatif labellise par
   `render-argocd-apps.py`.
-- `make gitlab-git-credentials` : verifie le PAT GitLab root stocke dans
-  `git-credential` pour l'URL interne du cluster, et ne le (re)cree que s'il
-  est absent, invalide ou a moins de 30 jours d'expiration
-  (`--rotate` pour forcer la rotation).
+- `make gitlab-git-credentials` : verifie le PAT gitlab.com stocke dans
+  `git-credential`, et ne le (re)stocke depuis `GITLAB_TOKEN` que s'il est
+  absent, invalide ou a moins de 30 jours d'expiration (`--rotate` pour
+  forcer). Le token lui-meme est gere par l'operateur cote gitlab.com (meme
+  PAT que `GITLAB_TOKEN` utilise par `gitlab-reset`/`platform-destroy`).
 - `make gitlab-projects-wait` : attend que le Terraform `gitlab-iac`
   (tf-controller) ait cree les projets GitLab applicatifs.
 - `make argocd-apps-wait` : attend que toutes les Applications ArgoCD soient

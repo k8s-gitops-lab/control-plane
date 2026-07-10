@@ -9,8 +9,10 @@
 platform:
   domain: 192.168.33.100.nip.io
   gitlab:
-    namespace: gitlab
-    internalHost: gitlab-webservice-default.gitlab.svc.cluster.local:8181
+    # gitlab.com (bascule big bang du 2026-07-10, cf. docs/backlog.md) : plus
+    # d'instance locale dans le cluster, group racine du groupe gitlab.com.
+    url: https://gitlab.com
+    group: k8s-gitops-lab
   argocd:
     namespace: argocd
   repositories:

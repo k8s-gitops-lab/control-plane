@@ -2,11 +2,11 @@
 """Smoke test de bout en bout de la plateforme.
 
 Vérifie les critères d'acceptation observables du PRD : cluster Ready,
-GitLab et ArgoCD répondent, toutes les Applications ArgoCD sont
-Synced/Healthy, le secret GHCR est en place, le PAT git-credential est
-valide, et pour chaque app de l'inventaire les projets GitLab existent,
-les composants CI inclus pointent des tags qui existent, et le dernier
-pipeline est vert.
+ArgoCD répond, toutes les Applications ArgoCD sont Synced/Healthy, le
+secret GHCR est en place, le PAT git-credential gitlab.com est valide
+(ce qui confirme au passage que l'API gitlab.com répond), et pour chaque
+app de l'inventaire les projets GitLab existent, les composants CI inclus
+pointent des tags qui existent, et le dernier pipeline est vert.
 
 Usage :
   python3 scripts/platform-verify.py [--quiet]
@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import urllib.parse
 
 import platform_checks as pc
 
@@ -42,14 +43,14 @@ def main() -> None:
 
     # Plateforme
     run("cluster", *pc.check_cluster(values))
-    run("gitlab-web", *pc.check_gitlab_web(values))
     run("argocd", *pc.check_argocd_ready(values))
     run("argocd-apps", *pc.check_apps_synced(values))
     run("ghcr-pull-secret", *pc.check_ghcr_secret(values))
 
-    token = pc.credential_fill(values["INTERNAL_GITLAB_HOST"])
-    pat_ok, pat_detail, _ = pc.gitlab_pat_status(values["GITLAB_DOMAIN"], token) if token \
-        else (False, f"aucune credential git pour {values['INTERNAL_GITLAB_HOST']} (make gitlab-git-credentials)", None)
+    host = urllib.parse.urlparse(values["GITLAB_URL"]).netloc
+    token = pc.credential_fill(host)
+    pat_ok, pat_detail, _ = pc.gitlab_pat_status(values["GITLAB_URL"], token) if token \
+        else (False, f"aucune credential git pour {host} (make gitlab-git-credentials)", None)
     run("gitlab-pat", pat_ok, pat_detail)
 
     # Apps de l'inventaire (nécessite le PAT pour interroger l'API)

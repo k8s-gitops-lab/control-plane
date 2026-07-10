@@ -10,7 +10,6 @@ from __future__ import annotations
 import base64
 import json
 import os
-import ssl
 import subprocess
 import urllib.error
 import urllib.parse
@@ -42,8 +41,8 @@ def load_values(config: str | os.PathLike | None = None) -> dict[str, str]:
 
     return {
         "GITLAB_DOMAIN": platform["domain"],
-        "GITLAB_NAMESPACE": platform["gitlab"]["namespace"],
-        "INTERNAL_GITLAB_HOST": platform["gitlab"]["internalHost"],
+        "GITLAB_URL": platform["gitlab"]["url"],
+        "GITLAB_GROUP": platform["gitlab"]["group"],
         "ARGOCD_NAMESPACE": platform["argocd"]["namespace"],
         "ARGOCD_VERSION": versions["argocd"],
         "INFRASTRUCTURE_REPO": repos["infrastructure"],
@@ -62,13 +61,6 @@ def repo_path(values: dict[str, str], key: str) -> Path:
 # Primitives (kubectl, git credential, API GitLab)
 # ---------------------------------------------------------------------------
 
-def _insecure_ssl_ctx() -> ssl.SSLContext:
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-    return ctx
-
-
 def run_out(cmd: list[str], timeout: int = KUBECTL_TIMEOUT, **kwargs) -> str | None:
     """Retourne stdout si la commande réussit, None sinon (échec ou timeout)."""
     try:
@@ -82,11 +74,11 @@ def kubectl_out(args: list[str]) -> str | None:
     return run_out(["kubectl", f"--request-timeout={KUBECTL_TIMEOUT - 5}s", *args])
 
 
-def credential_fill(internal_host: str) -> str:
-    """Retourne le mot de passe stocké dans git-credential pour l'hôte interne, '' si absent."""
+def credential_fill(host: str) -> str:
+    """Retourne le mot de passe stocké dans git-credential pour cet hôte, '' si absent."""
     out = run_out(
         ["git", "credential", "fill"],
-        input=f"protocol=http\nhost={internal_host}\n\n",
+        input=f"protocol=https\nhost={host}\n\n",
         env={**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": "true"},
     )
     for line in (out or "").splitlines():
@@ -102,13 +94,13 @@ def _json_or_none(raw: bytes) -> object:
         return None
 
 
-def gitlab_api(domain: str, path: str, token: str = "") -> tuple[int, object]:
-    """GET sur GitLab externe (TLS auto-signé accepté). Retourne (statut, corps
-    json ou None si le corps n'est pas du JSON — pages HTML incluses)."""
+def gitlab_api(base_url: str, path: str, token: str = "") -> tuple[int, object]:
+    """GET sur l'API GitLab. Retourne (statut, corps json ou None si le corps
+    n'est pas du JSON — pages HTML incluses)."""
     headers = {"Authorization": f"Bearer {token}"} if token else {}
-    req = urllib.request.Request(f"https://gitlab.{domain}{path}", headers=headers)
+    req = urllib.request.Request(f"{base_url.rstrip('/')}{path}", headers=headers)
     try:
-        with urllib.request.urlopen(req, context=_insecure_ssl_ctx(), timeout=KUBECTL_TIMEOUT) as resp:
+        with urllib.request.urlopen(req, timeout=KUBECTL_TIMEOUT) as resp:
             return resp.status, _json_or_none(resp.read())
     except urllib.error.HTTPError as exc:
         return exc.code, _json_or_none(exc.read())
@@ -116,9 +108,9 @@ def gitlab_api(domain: str, path: str, token: str = "") -> tuple[int, object]:
         return 0, None
 
 
-def gitlab_pat_status(domain: str, token: str) -> tuple[bool, str, int | None]:
+def gitlab_pat_status(base_url: str, token: str) -> tuple[bool, str, int | None]:
     """Valide un PAT contre l'API : (valide, détail, jours restants avant expiration)."""
-    status, body = gitlab_api(domain, "/api/v4/personal_access_tokens/self", token=token)
+    status, body = gitlab_api(base_url, "/api/v4/personal_access_tokens/self", token=token)
     if status in (401, 403):
         return False, f"PAT rejeté par l'API (HTTP {status})", None
     if status != 200 or not isinstance(body, dict):
@@ -212,18 +204,12 @@ def check_ghcr_secret(values: dict[str, str]) -> tuple[bool, str]:
     return True, f"secret ghcr-pull-secret présent dans {ns}"
 
 
-def check_gitlab_web(values: dict[str, str]) -> tuple[bool, str]:
-    status, _ = gitlab_api(values["GITLAB_DOMAIN"], "/users/sign_in")
-    if status != 200:
-        return False, f"GitLab ne répond pas sur /users/sign_in (HTTP {status or 'timeout'})"
-    return True, f"GitLab répond sur https://gitlab.{values['GITLAB_DOMAIN']}"
-
-
 def check_git_creds(values: dict[str, str]) -> tuple[bool, str]:
-    token = credential_fill(values["INTERNAL_GITLAB_HOST"])
+    host = urllib.parse.urlparse(values["GITLAB_URL"]).netloc
+    token = credential_fill(host)
     if not token:
-        return False, f"aucune credential git pour {values['INTERNAL_GITLAB_HOST']}"
-    ok, detail, _ = gitlab_pat_status(values["GITLAB_DOMAIN"], token)
+        return False, f"aucune credential git pour {host}"
+    ok, detail, _ = gitlab_pat_status(values["GITLAB_URL"], token)
     return ok, detail
 
 
@@ -264,12 +250,12 @@ def load_inventory_apps(values: dict[str, str]) -> list[dict]:
 
 
 def check_app_projects(values: dict[str, str], app: dict, token: str) -> tuple[bool, str]:
-    domain = values["GITLAB_DOMAIN"]
-    group = app.get("group", "root")
+    base_url = values["GITLAB_URL"]
+    group = f"{values['GITLAB_GROUP']}/{app.get('group', 'root')}"
     missing = []
     for repo in (app["name"], f"{app['name']}-iac"):
         project_id = urllib.parse.quote(f"{group}/{repo}", safe="")
-        status, _ = gitlab_api(domain, f"/api/v4/projects/{project_id}", token=token)
+        status, _ = gitlab_api(base_url, f"/api/v4/projects/{project_id}", token=token)
         if status != 200:
             missing.append(f"{group}/{repo} (HTTP {status})")
     if missing:
@@ -277,10 +263,10 @@ def check_app_projects(values: dict[str, str], app: dict, token: str) -> tuple[b
     return True, f"projets {group}/{app['name']} et {group}/{app['name']}-iac présents"
 
 
-def _gitlab_file_content(domain: str, project_id: str, file_path: str, ref: str, token: str) -> bytes | None:
+def _gitlab_file_content(base_url: str, project_id: str, file_path: str, ref: str, token: str) -> bytes | None:
     encoded = urllib.parse.quote(file_path, safe="")
     status, body = gitlab_api(
-        domain,
+        base_url,
         f"/api/v4/projects/{project_id}/repository/files/{encoded}?ref={urllib.parse.quote(ref, safe='')}",
         token=token)
     if status != 200 or not isinstance(body, dict):
@@ -330,18 +316,18 @@ def check_app_ci_components(values: dict[str, str], app: dict, token: str) -> tu
     Lit le .gitlab-ci.yml de la branche par défaut du projet GitLab de l'app
     (celui qui fait foi pour la CI).
     """
-    domain = values["GITLAB_DOMAIN"]
-    group = app.get("group", "root")
+    base_url = values["GITLAB_URL"]
+    group = f"{values['GITLAB_GROUP']}/{app.get('group', 'root')}"
     project = f"{group}/{app['name']}"
     project_id = urllib.parse.quote(project, safe="")
 
-    status, body = gitlab_api(domain, f"/api/v4/projects/{project_id}", token=token)
+    status, body = gitlab_api(base_url, f"/api/v4/projects/{project_id}", token=token)
     if status != 200 or not isinstance(body, dict):
         return False, f"projet {project} illisible (HTTP {status})"
     default_branch = body.get("default_branch") or "main"
 
     status, body = gitlab_api(
-        domain,
+        base_url,
         f"/api/v4/projects/{project_id}/repository/files/.gitlab-ci.yml?ref={default_branch}",
         token=token)
     if status == 404:
@@ -357,7 +343,7 @@ def check_app_ci_components(values: dict[str, str], app: dict, token: str) -> tu
     if not queue:
         return True, f"{project} : aucun composant CI inclus"
 
-    known_hosts = ("$CI_SERVER_FQDN", f"gitlab.{domain}")
+    known_hosts = ("$CI_SERVER_FQDN", urllib.parse.urlparse(base_url).netloc)
     seen: set[str] = set()
     bad = []
     resolved = 0
@@ -380,25 +366,25 @@ def check_app_ci_components(values: dict[str, str], app: dict, token: str) -> tu
         comp_id = urllib.parse.quote(comp_project, safe="")
         if ref == "~latest":
             status, releases = gitlab_api(
-                domain, f"/api/v4/projects/{comp_id}/releases?per_page=1", token=token)
+                base_url, f"/api/v4/projects/{comp_id}/releases?per_page=1", token=token)
             if status != 200 or not releases:
                 bad.append(f"{comp_project}/{comp_name}@~latest (aucune release)")
             continue
         content = None
         for path in (f"templates/{comp_name}/template.yml", f"templates/{comp_name}.yml"):
-            content = _gitlab_file_content(domain, comp_id, path, ref, token)
+            content = _gitlab_file_content(base_url, comp_id, path, ref, token)
             if content is not None:
                 break
         if content is None:
             tag_status, _ = gitlab_api(
-                domain,
+                base_url,
                 f"/api/v4/projects/{comp_id}/repository/tags/{urllib.parse.quote(ref, safe='')}",
                 token=token)
             if tag_status == 200:
                 bad.append(f"{comp_project}/{comp_name}@{ref} (tag présent mais template absent)")
             else:
                 _, tags = gitlab_api(
-                    domain, f"/api/v4/projects/{comp_id}/repository/tags?per_page=1", token=token)
+                    base_url, f"/api/v4/projects/{comp_id}/repository/tags?per_page=1", token=token)
                 latest = tags[0].get("name", "?") if isinstance(tags, list) and tags else "aucun"
                 bad.append(f"{comp_project}/{comp_name}@{ref} (ref inexistant, dernier tag : {latest})")
             continue
@@ -410,10 +396,10 @@ def check_app_ci_components(values: dict[str, str], app: dict, token: str) -> tu
 
 
 def check_app_pipeline(values: dict[str, str], app: dict, token: str) -> tuple[bool, str]:
-    domain = values["GITLAB_DOMAIN"]
-    group = app.get("group", "root")
+    base_url = values["GITLAB_URL"]
+    group = f"{values['GITLAB_GROUP']}/{app.get('group', 'root')}"
     project_id = urllib.parse.quote(f"{group}/{app['name']}", safe="")
-    status, body = gitlab_api(domain, f"/api/v4/projects/{project_id}/pipelines?per_page=1", token=token)
+    status, body = gitlab_api(base_url, f"/api/v4/projects/{project_id}/pipelines?per_page=1", token=token)
     if status != 200 or not isinstance(body, list):
         return False, f"pipelines de {group}/{app['name']} illisibles (HTTP {status})"
     if not body:
