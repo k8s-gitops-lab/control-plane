@@ -499,44 +499,50 @@ gitlab.com (TLS public, aucun contournement requis).
    (portable, lit `GITLAB_URL` désormais passé en variable de job par
    `promote/template.yml`).
 6. **Validé bout en bout par un vrai push** (`helloworld`, commit
-   `2c12dba`) : pipeline gitlab.com, `docker-buildah-build` (les deux
-   services), `docker-hadolint`, `docker-trivy`, `deploy-dev` et
-   `semantic-release` tous **success** ; commit de déploiement réel
+   `2c12dba` puis `4dda6f8` après le correctif runner ci-dessous) :
+   pipeline gitlab.com, `docker-buildah-build` (les deux services),
+   `docker-hadolint`, `docker-trivy`, `docker-sbom`, `deploy-dev` et
+   `semantic-release` tous **success**, tous exécutés sur notre propre
+   runner (`runner.is_shared: false`) ; commit de déploiement réel
    constaté sur la branche `dev` de `helloworld-iac` (gitlab.com) ;
-   Application ArgoCD `helloworld-dev` re-synced sur ce commit, nouveaux
-   pods `2c12dbab` déployés — **mais en `CrashLoopBackOff`**, cf. bug
-   ci-dessous. La chaîne GitOps (build → publish → commit manifests →
-   sync ArgoCD) est donc validée de bout en bout ; le contenu de l'image
-   produite, non.
+   Application ArgoCD `helloworld-dev` re-synced, pods `aarch64`
+   `1/1 Running`, endpoint `/health` répond `{"status":"ok"}` — chaîne
+   GitOps (build → publish → commit manifests → sync ArgoCD → pod sain)
+   validée de bout en bout, contenu de l'image inclus.
 
-**🔴 Bug découvert (non résolu) — images buildées en amd64 au lieu
-d'arm64** : les pods `helloworld-svc`/`helloworld-gui` déployés par ce
-test crash-loopent avec `exec format error`. Confirmé : le nœud cible est
-arm64 (`uname -m` = `aarch64`), les anciens pods (image `f4a85af1`,
-buildés avant la migration) sont bien `aarch64` et tournent normalement,
-mais le job `docker-buildah-build` de ce pipeline a tourné avec
-`OS/Arch: linux/amd64` / `BuildPlatform: linux/amd64` (visible dans son
-trace) — l'image produite est donc amd64, incompatible avec le cluster.
-Le runner `gitlab-runner-com` reprend pourtant la config du runner local
-telle quelle (même version de chart 0.88.2, même `helper_image` pinné
-arm64) ; aucune différence identifiée dans les values qui expliquerait ce
-changement de comportement de sélection d'architecture par le composant
-`to-be-continuous/docker`. **Pas de service coupé** : les anciens pods
-(arm64) restent up, ArgoCD affiche seulement `Degraded` sur
-`helloworld-dev` le temps que les nouveaux pods crash-loopent — mais tout
-nouveau déploiement réel via ce runner produira des images cassées tant
-que ce n'est pas corrigé. À investiguer avant de basculer une vraie
-release dessus (piste : `--platform`/variable d'entrée du composant
-`to-be-continuous/docker`, ou différence de scheduling entre sous-chart
-et Application standalone).
+**🟢 Bug résolu — images buildées en amd64 au lieu d'arm64** : les pods
+`helloworld-svc`/`helloworld-gui` déployés par le premier test
+crash-loopaient avec `exec format error`. **Cause racine identifiée** (et
+c'est l'utilisateur qui a posé la bonne question — « le runner k8s est-il
+systématiquement utilisé ? ») : le job `docker-buildah-build` n'avait
+tourné ni sur notre runner ni forcément sur un runner arm64 — l'API du
+job confirmait `runner.is_shared: true`,
+`runner.description: 3-blue.saas-linux-small-amd64.runners-manager.
+gitlab.com` : gitlab.com avait dispatché vers un **runner SaaS partagé**
+(amd64), pas vers `gitlab-runner-com`. Explication : aucun job n'a de
+`tags:`, notre runner accepte les jobs non taggés (`run_untagged: true`,
+comportement par défaut), et les runners partagés du groupe étaient
+encore actifs (`shared_runners_enabled: true`) — gitlab.com a préféré le
+partagé, disponible plus vite. **Corrigé** :
+`gitlab_group.root.shared_runners_setting = "disabled_and_unoverridable"`
+(`gitlab-projects-iac/terraform-gitlabcom`) force tous les jobs du groupe
+sur notre runner self-hosted, sans exception possible par un sous-groupe.
+**Revalidé par un nouveau push réel** (`helloworld` commit `4dda6f8`) :
+tous les jobs confirmés `runner.is_shared: false`, pods redéployés
+`aarch64` (`uname -m`), `1/1 Running`, endpoint `/health` répond
+`{"status":"ok"}`. Effet de bord noté au passage : un re-déclenchement du
+même commit ne suffit pas à faire réapparaître une image corrigée sur un
+nœud qui l'a déjà en cache (`imagePullPolicy: IfNotPresent` + même tag) —
+il faut un nouveau commit/tag pour forcer un vrai re-pull, pas juste
+relancer le pipeline.
 
-**Dette connue, non bloquante** : `docker-sbom` (scan de sécurité,
-composant `to-be-continuous`) échoue avec `Permission denied` en écrivant
-`/etc/ssl/certs/ca-certificates.crt` malgré `build_container_security_context.
-run_as_user = 0` correctement présent dans le `config.toml` du runner —
-même contrainte déjà documentée côté runner local, jamais pleinement
-résolue ; ne bloque pas le déploiement (`deploy-dev` ne dépend pas de ce
-job). À investiguer séparément si le SBOM devient nécessaire.
+**Dette connue, désormais sans objet** : `docker-sbom` (scan de sécurité,
+composant `to-be-continuous`) échouait avec `Permission denied` en
+écrivant `/etc/ssl/certs/ca-certificates.crt` sur le premier run — a
+tourné sans erreur une fois exécuté sur notre propre runner (même
+correctif que ci-dessus), la cause était probablement liée au runner
+partagé (image/permissions différentes) plutôt qu'à une vraie contrainte
+persistante. Plus vu depuis, à surveiller quand même.
 
 **Reste à faire** : `ci-templates` (composants eux-mêmes) et
 `platform-gitops` ne sont pas des « consommateurs » au même sens
