@@ -426,29 +426,100 @@ correspondante (aucune divergence de contenu) ; pods applicatifs non
 redémarrés (`restarts=0`, âge antérieur au cutover) — bascule
 transparente, zéro interruption.
 
-**Reste à faire** : séquencement bootstrap, miroir `to-be-continuous`,
-registre (déjà sans impact). `helloworld` est le seul consommateur réel
-basculé — les autres repos (`ci-templates`, `platform-gitops` lui-même)
-restent sur l'instance locale par défaut, migrables app par app avec le
-même mécanisme désormais en place.
+**Dette résiduelle Phase 4** : le pod `argocd-dex-server` live portait
+encore le patch impératif de la Phase 4 initiale — **devenu sans objet** :
+tout le namespace `gitlab` a été supprimé en Phase 7, `argocd-dex-server`
+n'existe plus. Rien à nettoyer.
 
-**Dette résiduelle Phase 4** : le pod `argocd-dex-server` live porte encore
-le patch impératif de la Phase 4 initiale (volume/`SSL_CERT_FILE` monté
-depuis le ConfigMap `argocd-dex-ca-bundle`, jamais géré par GitOps), et
-`argocd-secret` garde les clés `dex.gitlab.clientID`/`clientSecret`
-orphelines. Laissé tel quel volontairement : supprimer le ConfigMap avant
-de retirer le patch de la Deployment casserait le montage au prochain
-redémarrage du pod — nettoyage à faire dans le bon ordre (retirer le
-patch de la Deployment d'abord) plutôt qu'en balayage rapide.
+**Point d'attention opérationnel (clos par la Phase 7)** : le poste de
+développement avait un problème d'accès TLS récurrent au GitLab local
+(`gitlab.192.168.33.100.nip.io`), qui a empêché plusieurs push vers le
+remote `gitlab` de `platform-gitops` pendant cette session. Sans objet
+depuis la bascule big bang : le remote `gitlab` pointe désormais vers
+gitlab.com (TLS public, aucun contournement requis).
 
-**Point d'attention opérationnel** : le poste de développement a par
-intermittence un problème d'accès TLS au GitLab local
-(`gitlab.192.168.33.100.nip.io`, cf. [[project-gitlab-lab-access]]) qui a
-empêché plusieurs push vers le remote `gitlab` de `platform-gitops`
-pendant cette session (poussés sur `origin`/GitHub uniquement en
-attendant) — à repousser vers `gitlab` dès que l'accès revient, sous
-peine que le miroir GitLab→GitHub écrase `origin` (cf. incident
-2026-07-09 documenté dans `AGENTS.md`/`CLAUDE.md`).
+---
+
+## Bascule big bang (remplacement complet, pas de progressivité)
+
+> Décidé le 2026-07-10, en cours de session, en rupture avec le
+> séquencement progressif prévu plus haut (Phases 1 à 6) : l'opérateur a
+> explicitement demandé un remplacement brutal du GitLab local par
+> gitlab.com, **sans se soucier de la rupture de service**. Les phases
+> précédentes (structure, Terraform, repo-creds, retrait SSO, runner,
+> premier cutover) restent la base technique ; cette section documente ce
+> qui a été fait en plus pour aller jusqu'au remplacement complet.
+
+**Fait le 2026-07-10** :
+
+1. **CI/CD gitlab.com câblé** (`gitlab-projects-iac/terraform-gitlabcom`) :
+   variables de groupe héritées par tous les sous-groupes —
+   `GITLAB_PUSH_TOKEN`, `GHCR_TOKEN`, `CUSTOM_CA_CERTS`,
+   `INTERNAL_GITLAB_HOST=gitlab.com`, `GITLAB_PUSH_SCHEME=https`,
+   `GITLAB_PUSH_USERNAME=oauth2`, `CI_TEMPLATES_PROJECT_PATH=k8s-gitops-lab/
+   shared-ci/ci-templates`. **Dette assumée** : `GITLAB_PUSH_TOKEN` réutilise
+   le PAT propriétaire (`var.gitlab_token`) au lieu d'un bot scopé — un vrai
+   `gitlab_user` est impossible sur gitlab.com (`POST /api/v4/users` → 403,
+   admin d'instance requis) et `gitlab_group_access_token` refuse aussi
+   (400, indisponible sur le tier Free) ; recoupe l'axe 7 déjà suivi
+   (dette de sécurité générale, pas spécifique à cette migration).
+2. **Remotes basculés** : dans les 4 repos GitLab-first, l'ancien remote
+   `gitlab` (local) supprimé, `gitlabcom` renommé `gitlab` — `git push
+   gitlab main` pointe maintenant vers gitlab.com partout, sans changement
+   de commande pour l'opérateur. `cockpit/CLAUDE.md` mis à jour.
+3. **GitLab local décommissionné** : Application ArgoCD `gitlab` (chart
+   Helm), `gitlab-routes`, `gitlab-minio-patch`, CR Terraform local
+   `gitlab-iac` supprimés du GitOps ; ArgoCD a prune la release ; le
+   namespace `gitlab` a été supprimé explicitement (PVCs Postgres/MinIO/
+   Gitaly/Redis inclus — **perte de données assumée** : issues, MR, wiki,
+   historique CI de l'instance locale, rien de tout ça n'était mirroré).
+4. **Bootstrap nettoyé** (`platform-bootstrap`) : `gitlab-tf-credentials.py`,
+   `gitlab-runner-token.py` (local) et leur helper partagé
+   `gitlab_bootstrap.py` supprimés — sans ce nettoyage, un futur `make
+   bootstrap` aurait attendu indéfiniment un GitLab local inexistant
+   (`wait_for_gitlab_ready`). Ne reste que `gitlab-runner-token-com`.
+5. **Bug structurel découvert et corrigé en validant un vrai pipeline** :
+   les chemins relatifs (`shared-ci/ci-templates`, `hello-groupe/
+   helloworld-iac`) codés en dur dans `ci-templates` et `helloworld`
+   supposaient des groupes GitLab **top-level** (vrai en local) — faux sur
+   gitlab.com où `shared-ci`/`hello-groupe` sont des **sous-groupes** de
+   `k8s-gitops-lab`. Résultat : `include: component:` échouait
+   (`content not found`) et `.fetch-scripts`/`deploy.py` auraient poussé
+   au mauvais endroit. Corrigé : préfixe `k8s-gitops-lab/` dans
+   `helloworld/.gitlab-ci.yml`, nouvelle variable
+   `CI_TEMPLATES_PROJECT_PATH` dans `ci-templates` (portable, comme
+   `GITLAB_PUSH_SCHEME`/`USERNAME`). Distinct d'un second point bloquant :
+   `include: component:` sur gitlab.com exige que le projet source soit
+   publié au **CI/CD Catalog** (mutation GraphQL `catalogResourcesCreate`
+   + une `Release` par tag) — absent en local, découvert empiriquement
+   (les composants `to-be-continuous/*` officiels résolvaient, pas les
+   nôtres, tant que non publiés). `ci-templates` publié au catalogue ;
+   nouveau tag `v3.0.11` avec les deux correctifs.
+   `.releaserc.json` de `helloworld` ne fige plus d'URL locale non plus
+   (portable, lit `GITLAB_URL` désormais passé en variable de job par
+   `promote/template.yml`).
+6. **Validé bout en bout par un vrai push** (`helloworld`, commit
+   `2c12dba`) : pipeline gitlab.com, `docker-buildah-build` (les deux
+   services), `docker-hadolint`, `docker-trivy`, `deploy-dev` et
+   `semantic-release` tous **success** ; commit de déploiement réel
+   constaté sur la branche `dev` de `helloworld-iac` (gitlab.com) ;
+   Application ArgoCD `helloworld-dev` re-synced sur ce commit, nouveaux
+   pods `2c12dbab` confirmés en direct sur le cluster.
+
+**Dette connue, non bloquante** : `docker-sbom` (scan de sécurité,
+composant `to-be-continuous`) échoue avec `Permission denied` en écrivant
+`/etc/ssl/certs/ca-certificates.crt` malgré `build_container_security_context.
+run_as_user = 0` correctement présent dans le `config.toml` du runner —
+même contrainte déjà documentée côté runner local, jamais pleinement
+résolue ; ne bloque pas le déploiement (`deploy-dev` ne dépend pas de ce
+job). À investiguer séparément si le SBOM devient nécessaire.
+
+**Reste à faire** : `ci-templates` (composants eux-mêmes) et
+`platform-gitops` ne sont pas des « consommateurs » au même sens
+qu'une app applicative — rien à basculer côté déploiement pour eux au-delà
+de ce qui est déjà fait (miroir de contenu). Le mécanisme de cutover
+(`argocdRepoURL` + préfixe de groupe + `CI_TEMPLATES_PROJECT_PATH`) est
+posé et réutilisable pour toute future app.
 
 ---
 
