@@ -261,12 +261,18 @@ migration, pas en début — bascule progressive, pas un big bang.
 
 **Cartographie des dépendances actuelles au GitLab in-cluster** (établie le
 2026-07-10, cf. repos cités) :
-1. **SSO ArgoCD** : connector Dex `type: gitlab` (`platform-gitops/argocd/
-   platform/argocd-config/argocd-cm.yaml`) pointe sur le GitLab local ;
-   l'Application OAuth est créée par
-   `platform-bootstrap/scripts/gitlab-dex-oauth-app.py` (auth root). Sur
-   gitlab.com il n'existe pas de mot de passe root exploitable par script :
-   l'Application OAuth devra être créée une fois manuellement (ou via PAT).
+1. **SSO ArgoCD** : ~~connector Dex `type: gitlab`~~ — **décidé le
+   2026-07-10 : hors périmètre, décommissionné plutôt que migré.** Pas de
+   besoin avéré de SSO pour ce lab mono-opérateur ; le login local ArgoCD
+   (`admin`) suffit. Retrait complet (pas de remplacement gitlab.com) :
+   connector dans `platform-gitops/argocd/platform/argocd-config/
+   argocd-cm.yaml`, mapping RBAC associé dans `argocd-rbac-cm.yaml`,
+   provisioning `platform-bootstrap/scripts/gitlab-dex-oauth-app.py` +
+   tâche Ansible + cible Make, patch CA dédié
+   (`platform-bootstrap/argocd/dex-ca-patch.yaml` + tâche de confiance CA
+   associée), et l'exposition Gateway dédiée (`platform-gitops/argocd/
+   platform/argocd-ui/dex-route.yaml` + `dex-service.yaml`, redondante avec
+   le proxy `/api/dex/*` déjà fourni par `argocd-server`).
 2. **Terraform `gitlab-projects-iac`** : déjà authentifié par PAT
    (`providers.tf`), pas par le root token directement — seul `gitlab_url`
    (`variables.tf`, défaut local, `insecure = true`) et la génération du
@@ -356,12 +362,28 @@ Applications ArgoCD `helloworld`, dérivée par convention depuis
 `repoURL`, cf. axe 2 de l'initiative extensibilité) n'a pas été touché :
 aucune Application déployée ne bascule sur gitlab.com par ce commit.
 
-**Reste à faire (phases suivantes, séquencement à détailler)** : SSO Dex,
-runner, séquencement bootstrap, miroir `to-be-continuous`, registry — et,
-pour clore réellement le point repo-creds, le cutover du champ `repoURL`
+**Phase 4 (retrait SSO Dex↔GitLab)** faite le 2026-07-10 : décommissionné
+plutôt que migré (cf. point 1 de la cartographie ci-dessus) — connector
+Dex, mapping RBAC, provisioning OAuth au bootstrap, patch CA dex-server,
+route Gateway dédiée, tous retirés. Login ArgoCD `admin` local seul
+mécanisme d'accès restant (déjà le cas en pratique, `admin.enabled` jamais
+désactivé).
+
+**Reste à faire (phases suivantes, séquencement à détailler)** : runner,
+séquencement bootstrap, miroir `to-be-continuous`, registry — et, pour
+clore réellement le point repo-creds, le cutover du champ `repoURL`
 consommé par `app-data.yaml` (aujourd'hui dérivé par convention vers le
 GitLab local, cf. axe 2) vers gitlab.com. Aucun consommateur réel du
 GitLab local n'est encore basculé.
+
+**Dette résiduelle Phase 4** : le pod `argocd-dex-server` live porte encore
+le patch impératif de la Phase 4 initiale (volume/`SSL_CERT_FILE` monté
+depuis le ConfigMap `argocd-dex-ca-bundle`, jamais géré par GitOps), et
+`argocd-secret` garde les clés `dex.gitlab.clientID`/`clientSecret`
+orphelines. Laissé tel quel volontairement : supprimer le ConfigMap avant
+de retirer le patch de la Deployment casserait le montage au prochain
+redémarrage du pod — nettoyage à faire dans le bon ordre (retirer le
+patch de la Deployment d'abord) plutôt qu'en balayage rapide.
 
 **Point d'attention opérationnel** : le poste de développement a par
 intermittence un problème d'accès TLS au GitLab local
