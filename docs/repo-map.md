@@ -11,7 +11,7 @@ repos dans cet ordre.
 | `platform-bootstrap` | Bootstrap technique | Installe ArgoCD, configure le bootstrap initial et expose les commandes operateur. |
 | `platform-gitops` | Etat GitOps suivi par ArgoCD | Contient `argocd/managed/`, `argocd/platform/` et l'inventaire applicatif. |
 | `toolbox` | Outillage partage | Onboarding d'apps (PR sur l'inventaire), rendu des variables Terraform GitLab. |
-| `gitlab-projects-iac` | Provisioning GitLab | Terraform (applique automatiquement par Flux) : cree/met a jour les projets GitLab, la protection de branches et les miroirs GitHub. |
+| `gitlab-projects-iac` | Provisioning gitlab.com | Terraform (applique automatiquement par Flux/tf-controller) : cree/met a jour les groupes et projets gitlab.com (import initial depuis GitHub via `import_url` pour les apps preexistantes), les variables de groupe et la protection de branches. |
 | `ci-templates` | Pipeline applicatif generique | Template GitLab CI versionne, inclus par les apps. |
 | `helloworld` | App exemple | Monorepo applicatif multi-services. |
 | `helloworld-iac` | Manifests app exemple | Manifests Kubernetes promus par branches d'environnement. |
@@ -28,11 +28,11 @@ repos dans cet ordre.
    des repos manifests sont fabriques en continu par External Secrets
    Operator).
 5. Le Terraform de `gitlab-projects-iac` (applique automatiquement par Flux)
-   cree ou met a jour les projets GitLab, la protection de branches et les
-   miroirs GitHub.
+   cree ou met a jour les groupes/projets gitlab.com et la protection de
+   branches (import initial depuis GitHub pour les apps preexistantes).
 6. `ci-templates` definit la chaine CI/CD consommee par `helloworld`, en
-   s'appuyant sur les composants amont to-be-continuous (miroir local, voir
-   ci-dessous).
+   s'appuyant directement sur les composants CI/CD to-be-continuous de
+   gitlab.com (voir ci-dessous).
 7. `helloworld` pousse des images et modifie `helloworld-iac`.
 8. ArgoCD deploie `helloworld-iac` dans les namespaces d'environnement.
 
@@ -51,14 +51,17 @@ contenu (donnees, code, pipeline).
 `repoURL` est desormais une variable ansible (`gitops_repo_url`, template
 `ansible.builtin.template`), donc cette arete a disparu du graphe.
 
-Une dependance externe fait partie du graphe : le groupe GitLab local
-`to-be-continuous` (projets `docker`, `semantic-release`...) est un **miroir**
-de `gitlab.com/to-be-continuous`, cree et rafraichi par le Terraform de
-`gitlab-projects-iac` (GitLab ne resout les `include:component` que sur sa
-propre instance). `ci-templates` inclut ces composants amont a version figee
-(`@6.1.0` pour docker) — c'est le seul point de mise a jour pour toutes les
-apps. Ce miroir est critique pour tout build applicatif : sans lui, aucun
-pipeline `build-docker` ne passe.
+Une dependance externe fait partie du graphe : `gitlab.com/to-be-continuous`
+(projets `docker`, `semantic-release`...) est resolu **directement** par
+`include:component`, gitlab.com et gitlab.com/to-be-continuous etant la meme
+instance -- abandon du miroir local le 2026-07-11 (dette de portabilite
+close, cf. `full-review-backlog.md` R-08 et `docs/backlog.md`). Aucune
+ressource geree par `gitlab-projects-iac` ne le concerne : c'est une simple
+dependance externe, versionnee par les tags de composants que consomme
+`ci-templates` (`@6.1.0` pour docker) — c'est le seul point de mise a jour
+pour toutes les apps. Cette dependance reste critique pour tout build
+applicatif : si gitlab.com/to-be-continuous est indisponible, aucun pipeline
+`build-docker` ne passe.
 
 Il reste une paire de repos avec une dependance dans les deux sens :
 `gitlab-projects-iac` <-> `platform-gitops`. Ce n'est pas une dette a
@@ -85,18 +88,17 @@ flowchart RL
     ci_templates["ci-templates"]
     helloworld["helloworld"]
     helloworld_iac["helloworld-iac"]
-    tbc["to-be-continuous\n(miroir GitLab local de gitlab.com/to-be-continuous)"]
+    tbc["gitlab.com/to-be-continuous\n(dependance externe, aucune ressource geree)"]
 
     platform_bootstrap -->|"requiert un cluster K8s"| infra_iac
     platform_gitops -.->|"necessite ArgoCD installe"| platform_bootstrap
     toolbox -->|"lit l'inventaire de"| platform_gitops
     gitlab_projects_iac -.->|"chemin critique : CR tf-controller (sync-wave 1-3) de"| platform_gitops
     gitlab_projects_iac -->|"consomme apps.auto.tfvars.json de"| toolbox
-    ci_templates -->|"projet GitLab cree/mirrore par"| gitlab_projects_iac
-    helloworld -->|"projet GitLab cree/mirrore par"| gitlab_projects_iac
-    helloworld_iac -->|"projet GitLab cree/mirrore par"| gitlab_projects_iac
+    ci_templates -->|"projet gitlab.com cree/importe par"| gitlab_projects_iac
+    helloworld -->|"projet gitlab.com cree/importe par"| gitlab_projects_iac
+    helloworld_iac -->|"projet gitlab.com cree/importe par"| gitlab_projects_iac
     platform_gitops -.->|"confort : pipeline CI de regeneration heberge par"| gitlab_projects_iac
-    tbc -->|"miroir cree/rafraichi par"| gitlab_projects_iac
     ci_templates -->|"include:component docker/semantic-release@version figee de"| tbc
     helloworld -->|"consomme le pipeline de"| ci_templates
     helloworld_iac -->|"manifests mis a jour par le pipeline de"| helloworld

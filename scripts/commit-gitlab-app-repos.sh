@@ -24,6 +24,7 @@ Repos cibles:
   - helloworld
   - helloworld-iac
   - ci-templates
+  - platform-gitops
 
 Hypotheses:
   - Chaque repo cible est un sous-repertoire direct de DIR.
@@ -36,7 +37,7 @@ USAGE
 message=""
 root_dir=".."
 dry_run=false
-repos="helloworld helloworld-iac ci-templates"
+repos="helloworld helloworld-iac ci-templates platform-gitops"
 
 while [ "$#" -gt 0 ]; do
   case "$1" in

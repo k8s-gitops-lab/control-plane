@@ -62,6 +62,7 @@ GROUP_VARIABLE_BLOCK_RE = re.compile(
     r'resource\s+"gitlab_group_variable"\s+"(\w+)"\s*\{([^}]*)\}', re.DOTALL
 )
 GROUP_VARIABLE_KEY_RE = re.compile(r'key\s*=\s*"([A-Za-z0-9_]+)"')
+GROUP_VARIABLE_GROUP_RE = re.compile(r'group\s*=\s*gitlab_group\.(\w+)\.id')
 
 GROUP_BLOCK_RE = re.compile(r'resource\s+"gitlab_group"\s+"(\w+)"\s*\{([^}]*)\}', re.DOTALL)
 PROJECT_BLOCK_RE = re.compile(r'resource\s+"gitlab_project"\s+"(\w+)"\s*\{([^}]*)\}', re.DOTALL)
@@ -70,13 +71,18 @@ PARENT_ID_RE = re.compile(r'parent_id\s*=\s*gitlab_group\.(\w+)\.id')
 NAMESPACE_ID_RE = re.compile(r'namespace_id\s*=\s*gitlab_group\.(\w+)\.id')
 
 
-def parse_group_variable_resources(main_tf: str) -> list[tuple[str, str]]:
-    """Extrait (nom_ressource, clé) de chaque bloc gitlab_group_variable de main.tf."""
+def parse_group_variable_resources(main_tf: str) -> list[tuple[str, str, str]]:
+    """Extrait (nom_ressource, clé, nom_ressource_groupe_cible) de chaque bloc
+    gitlab_group_variable de main.tf. Le groupe cible n'est pas toujours le
+    groupe racine (ex. github_token_ci vit sur gitlab_group.infra) : lister
+    uniquement les variables du groupe racine et importer avec son id serait
+    faux pour ces variables-là (cf. R-02, cockpit/full-review-backlog.md)."""
     result = []
     for name, body in GROUP_VARIABLE_BLOCK_RE.findall(main_tf):
         key_match = GROUP_VARIABLE_KEY_RE.search(body)
-        if key_match:
-            result.append((name, key_match.group(1)))
+        group_match = GROUP_VARIABLE_GROUP_RE.search(body)
+        if key_match and group_match:
+            result.append((name, key_match.group(1), group_match.group(1)))
     return result
 
 
@@ -184,20 +190,7 @@ def main() -> None:
 
     need_root_import = ("gitlab_group", "root") not in tracked
 
-    status, remote_vars = pc.gitlab_api(
-        values["GITLAB_URL"], f"/api/v4/groups/{group_id}/variables?per_page=100", token=gitlab_token
-    )
-    if status != 200 or not isinstance(remote_vars, list):
-        sys.exit(f"Erreur lecture variables du groupe {group_id}: {status} {remote_vars}")
-    remote_keys = {v["key"] for v in remote_vars}
-
     main_tf = (terraform_dir / "main.tf").read_text()
-    pending_variables = [
-        (name, key)
-        for name, key in parse_group_variable_resources(main_tf)
-        if key in remote_keys and ("gitlab_group_variable", name) not in tracked
-    ]
-
     groups = parse_groups(main_tf)
     projects = parse_projects(main_tf)
 
@@ -218,22 +211,24 @@ def main() -> None:
             sys.exit(f"Erreur lecture {kind} '{full_path}': {status} {body}")
         return body["id"]
 
+    # Résout paresseusement l'id distant de chaque groupe nommé (mémoïsé) :
+    # nécessaire à la fois pour l'import du groupe et pour celui de ses
+    # variables (une gitlab_group_variable peut cibler un sous-groupe, ex.
+    # infra pour github_token_ci -- cf. parse_group_variable_resources).
+    group_remote_ids: dict[str, int] = {"root": group_id}
+
+    def resolve_group_id(name: str) -> int | None:
+        if name not in group_remote_ids:
+            group_remote_ids[name] = lookup("groups", full_group_path(groups, name))
+        return group_remote_ids[name]
+
     pending_groups: list[tuple[str, str, int]] = []
     for name in groups:
         if name == "root" or ("gitlab_group", name) in tracked:
             continue
-        remote_id = lookup("groups", full_group_path(groups, name))
+        remote_id = resolve_group_id(name)
         if remote_id is not None:
             pending_groups.append((name, full_group_path(groups, name), remote_id))
-
-    pending_projects: list[tuple[str, str, int]] = []
-    for name, (path, parent) in projects.items():
-        if ("gitlab_project", name) in tracked:
-            continue
-        full_path = f"{full_group_path(groups, parent)}/{path}"
-        remote_id = lookup("projects", full_path)
-        if remote_id is not None:
-            pending_projects.append((name, full_path, remote_id))
 
     # Instances dynamiques de gitlab_group.app/gitlab_project.app (for_each
     # piloté par apps.auto.tfvars.json, cf. main.tf locals.app_groups/
@@ -247,16 +242,85 @@ def main() -> None:
         if remote_id is not None:
             pending_groups.append((indexed_name, f"{root_path}/{group}", remote_id))
 
+    # Variables de groupe : chaque variable peut cibler un groupe différent
+    # (root pour la plupart, infra pour GITHUB_TOKEN) -- lister les seules
+    # variables du groupe racine ne suffit pas, et importer avec l'id racine
+    # une variable d'un autre groupe créerait une ressource fantôme.
+    group_variables_cache: dict[int, set[str]] = {}
+
+    def remote_variable_keys(gid: int) -> set[str]:
+        if gid not in group_variables_cache:
+            status, remote_vars = pc.gitlab_api(
+                values["GITLAB_URL"], f"/api/v4/groups/{gid}/variables?per_page=100", token=gitlab_token
+            )
+            if status != 200 or not isinstance(remote_vars, list):
+                sys.exit(f"Erreur lecture variables du groupe {gid}: {status} {remote_vars}")
+            group_variables_cache[gid] = {v["key"] for v in remote_vars}
+        return group_variables_cache[gid]
+
+    pending_variables: list[tuple[str, str, int]] = []
+    for name, key, group_ref in parse_group_variable_resources(main_tf):
+        if ("gitlab_group_variable", name) in tracked:
+            continue
+        var_group_id = resolve_group_id(group_ref)
+        if var_group_id is not None and key in remote_variable_keys(var_group_id):
+            pending_variables.append((name, key, var_group_id))
+
+    # Projets : résout l'id distant de chaque projet nommé (littéral et
+    # for_each), déjà tracké ou non -- nécessaire aussi pour seeder les
+    # branch protections ci-dessous, qui dépendent de l'id projet et non du
+    # suivi du gitlab_project lui-même.
+    project_remote_ids: dict[str, int] = {}
+    # adresse gitlab_project -> adresse gitlab_branch_protection correspondante
+    branch_protection_targets: dict[str, str] = {
+        "ci_templates": "ci_templates_main",
+        "platform_gitops": "platform_gitops_main",
+    }
+
+    pending_projects: list[tuple[str, str, int]] = []
+    for name, (path, parent) in projects.items():
+        full_path = f"{full_group_path(groups, parent)}/{path}"
+        remote_id = lookup("projects", full_path)
+        if remote_id is None:
+            continue
+        project_remote_ids[name] = remote_id
+        if ("gitlab_project", name) not in tracked:
+            pending_projects.append((name, full_path, remote_id))
+
     for project_name, group in app_projects.items():
         indexed_name = f'app["{project_name}"]'
-        if ("gitlab_project", indexed_name) in tracked:
-            continue
         full_path = f"{root_path}/{group}/{project_name}"
         remote_id = lookup("projects", full_path)
-        if remote_id is not None:
+        if remote_id is None:
+            continue
+        project_remote_ids[indexed_name] = remote_id
+        if ("gitlab_project", indexed_name) not in tracked:
             pending_projects.append((indexed_name, full_path, remote_id))
+        branch_protection_targets[indexed_name] = f'app_main["{project_name}"]'
 
-    if not need_root_import and not pending_variables and not pending_groups and not pending_projects:
+    # Branch protections : un projet survivant à un rebuild sans reset
+    # préalable garde sa protection de branche "main" -- sans réimport, le
+    # premier apply échoue en "Protected branch 'main' already exists".
+    def protected_main_exists(project_id: int) -> bool:
+        status, body = pc.gitlab_api(
+            values["GITLAB_URL"], f"/api/v4/projects/{project_id}/protected_branches/main", token=gitlab_token
+        )
+        if status == 404:
+            return False
+        if status != 200:
+            sys.exit(f"Erreur lecture protected_branches de project {project_id}: {status} {body}")
+        return True
+
+    pending_branch_protections: list[tuple[str, int, str]] = []
+    for project_addr, bp_name in branch_protection_targets.items():
+        if ("gitlab_branch_protection", bp_name) in tracked:
+            continue
+        project_id = project_remote_ids.get(project_addr)
+        if project_id is not None and protected_main_exists(project_id):
+            pending_branch_protections.append((bp_name, project_id, project_addr))
+
+    if (not need_root_import and not pending_variables and not pending_groups
+            and not pending_projects and not pending_branch_protections):
         print(f"OK : {detail or 'state en-cluster déjà à jour'}, rien à faire.")
         return
     if need_root_import:
@@ -269,7 +333,10 @@ def main() -> None:
               + ", ".join(p for _, p, _ in pending_projects))
     if pending_variables:
         print("Variables déjà sur gitlab.com mais absentes du state en-cluster : "
-              + ", ".join(key for _, key in pending_variables))
+              + ", ".join(key for _, key, _ in pending_variables))
+    if pending_branch_protections:
+        print("Protections de branche déjà sur gitlab.com mais absentes du state en-cluster : "
+              + ", ".join(addr for addr, _, _ in pending_branch_protections))
 
     override_path = terraform_dir / "backend_override.tf"
     tf_env = {
@@ -306,9 +373,12 @@ def main() -> None:
         for name, full_path, remote_id in pending_projects:
             do_import(f"gitlab_project.{name}", str(remote_id), full_path)
 
-        for name, key in pending_variables:
-            import_id = f"{group_id}:{key}:{ENVIRONMENT_SCOPE}"
+        for name, key, var_group_id in pending_variables:
+            import_id = f"{var_group_id}:{key}:{ENVIRONMENT_SCOPE}"
             do_import(f"gitlab_group_variable.{name}", import_id, key)
+
+        for bp_name, project_id, project_addr in pending_branch_protections:
+            do_import(f"gitlab_branch_protection.{bp_name}", f"{project_id}:main", project_addr)
     finally:
         override_path.unlink(missing_ok=True)
         shutil.rmtree(terraform_dir / ".terraform", ignore_errors=True)

@@ -48,6 +48,26 @@ def api(path: str, token: str, method: str = "GET"):
         return e.code, (json.loads(body) if body else None)
 
 
+def api_list_all(path: str, token: str):
+    """Recupere toutes les pages d'un listage GitLab (per_page=100, boucle
+    jusqu'a page vide) : l'API renvoie 20 elements par defaut, ce qui rendrait
+    le reset silencieusement partiel au-dela de 20 sous-groupes/projets."""
+    separator = "&" if "?" in path else "?"
+    items = []
+    page = 1
+    while True:
+        status, body = api(f"{path}{separator}per_page=100&page={page}", token)
+        if status != 200:
+            return status, body
+        if not body:
+            break
+        items.extend(body)
+        if len(body) < 100:
+            break
+        page += 1
+    return 200, items
+
+
 def main() -> None:
     token = os.environ.get("GITLAB_TOKEN", "")
     if not token:
@@ -64,11 +84,11 @@ def main() -> None:
     if status != 200:
         sys.exit(f"Erreur lecture groupe '{GROUP_PATH}': {status} {group}")
 
-    status, subgroups = api(f"/groups/{group['id']}/subgroups", token)
+    status, subgroups = api_list_all(f"/groups/{group['id']}/subgroups", token)
     if status != 200:
         sys.exit(f"Erreur listage sous-groupes de '{GROUP_PATH}': {status} {subgroups}")
 
-    status, projects = api(f"/groups/{group['id']}/projects?include_subgroups=false", token)
+    status, projects = api_list_all(f"/groups/{group['id']}/projects?include_subgroups=false", token)
     if status != 200:
         sys.exit(f"Erreur listage projets de '{GROUP_PATH}': {status} {projects}")
 

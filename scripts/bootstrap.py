@@ -20,9 +20,11 @@ import argparse
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
+import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -55,6 +57,74 @@ STEPS: list[tuple[str, str, object]] = [
     ("platform-verify", "platform-verify", check_platform_verify),
 ]
 STEP_NAMES = [name for name, _, _ in STEPS]
+
+# Binaires requis par etape (au-dela de git/python3, toujours supposes
+# presents) -- verifies uniquement pour les etapes qui vont reellement
+# s'executer (cf. preflight).
+BINARY_REQUIREMENTS: dict[str, list[str]] = {
+    "vm-images": ["packer", "vagrant"],
+    "cluster-from-images": ["vagrant"],
+    "snapshot-cluster": ["vagrant"],
+    "platform-bootstrap": ["kubectl"],
+    "gitlab-tf-state-seed": ["kubectl", "terraform"],
+    "ghcr-pull-secret": ["kubectl"],
+    "gitlab-projects": ["kubectl"],
+    "argocd-apps": ["kubectl"],
+    "platform-verify": ["kubectl"],
+}
+
+
+def preflight(steps_to_run: list[tuple[str, str, object]], values: dict[str, str]) -> list[str]:
+    """Verifie les prerequis externes (binaires, variables d'env, fichiers,
+    accessibilite gitlab.com) des seules etapes qui vont reellement
+    s'executer, avant de lancer ~40-60 min de Packer/Vagrant pour rien si
+    l'un d'eux manque. Retourne la liste des manques (vide si tout est ok)."""
+    names = {name for name, _, _ in steps_to_run}
+    missing: list[str] = []
+
+    binaries_needed: set[str] = set()
+    for name, required in BINARY_REQUIREMENTS.items():
+        if name in names:
+            binaries_needed.update(required)
+    for binary in sorted(binaries_needed):
+        if not shutil.which(binary):
+            missing.append(f"binaire '{binary}' introuvable dans le PATH")
+
+    if "gitlab-tf-state-seed" in names:
+        if not os.environ.get("GITLAB_TOKEN"):
+            missing.append("GITLAB_TOKEN requis (etape gitlab-tf-state-seed, PAT scope api)")
+        if not os.environ.get("GITHUB_TOKEN"):
+            missing.append("GITHUB_TOKEN requis (etape gitlab-tf-state-seed, scope repo)")
+
+    if "gitlab-git-creds" in names and not os.environ.get("GITLAB_TOKEN"):
+        ok, _ = pc.check_git_creds(values)
+        if not ok:
+            missing.append(
+                "GITLAB_TOKEN requis (etape gitlab-git-creds, aucune credential git "
+                "stockee valide a reutiliser)"
+            )
+
+    if "ghcr-pull-secret" in names:
+        secret_file = pc.repo_path(values, "GITOPS_REPO_ROOT") / "flux-secrets" / "ghcr-pull-secret.yaml"
+        if not secret_file.exists():
+            missing.append(
+                f"{secret_file} introuvable (lancer 'make ghcr-token-init' puis "
+                "committer/pousser platform-gitops)"
+            )
+
+    if "gitlab-tf-state-seed" in names and os.environ.get("GITLAB_TOKEN"):
+        status, _ = pc.gitlab_api(
+            values["GITLAB_URL"],
+            f"/api/v4/groups/{urllib.parse.quote(values['GITLAB_GROUP'], safe='')}",
+            token=os.environ["GITLAB_TOKEN"],
+        )
+        if status != 200:
+            missing.append(
+                f"groupe gitlab.com '{values['GITLAB_GROUP']}' inaccessible (HTTP {status}) -- "
+                "doit exister (creation manuelle via l'UI, cf. scripts/gitlab-reset.py)"
+            )
+
+    return missing
 
 
 def config_hash(config: str) -> str:
@@ -157,6 +227,13 @@ def main() -> None:
     if not steps_to_run:
         print("==> bootstrap: rien a faire (toutes les etapes demandees sont deja terminees et convergentes).")
         return
+
+    missing = preflight(steps_to_run, values)
+    if missing:
+        print("==> bootstrap: prerequis manquants, rien n'a ete lance :", file=sys.stderr)
+        for item in missing:
+            print(f"    - {item}", file=sys.stderr)
+        sys.exit(1)
 
     print("Bootstrap steps:", " -> ".join(name for name, _, _ in steps_to_run))
 

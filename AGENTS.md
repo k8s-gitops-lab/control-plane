@@ -125,13 +125,8 @@ Ne jamais modifier les fichiers directement dans GitLab. Toujours :
   les variables exportées par `export-env.py`.
 - Ne pas committer `.cockpit.env` (contient des chemins locaux absolus).
 
-## OpenWiki
+## Documentation
 
-This repository has documentation located in the /openwiki directory.
-
-Start here:
-- [OpenWiki quickstart](openwiki/quickstart.md)
-
-OpenWiki includes repository overview, architecture notes, workflows, domain concepts, operations, integrations, testing guidance, and source maps.
-
-When working in this repository, read the OpenWiki quickstart first, then follow its links to the relevant architecture, workflow, domain, operation, and testing notes.
+Pas d'OpenWiki dans ce dépôt. Entrées réelles : `README.md` (parcours
+utilisateurs, usage), `docs/repo-map.md` (rôle de chaque dépôt du workspace),
+`docs/backlog.md` (backlog produit et décisions).

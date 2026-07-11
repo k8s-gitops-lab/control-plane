@@ -88,10 +88,15 @@ fois).
    (`<app>-iac/`), en réutilisant `ci-templates` pour la CI (voir
    `helloworld`/`helloworld-iac` comme exemple de référence).
 2. Ouvrir une merge request directement sur le projet GitLab
-   `platform-gitops` ajoutant `argocd/apps/<app>.yaml` au format minimal :
-   `name`, `group`, `description`, `services`, `hasPreprod`. Tout le reste
-   (`repoURL`, namespaces, URLs, destinations ArgoCD) est dérivé par
-   convention par `toolbox/scripts/platform_inventory.py`.
+   `platform-gitops` ajoutant `argocd/apps/<app>.yaml` (schéma
+   `argocd/apps.schema.json`, seuls `name` et `group` sont requis) :
+   `apiVersion: platform/v1` (recommandé), `name`, `group`, `description`,
+   `services`, `hasPreprod`. Tout le reste (`repoURL`, `argocdRepoURL`
+   gitlab.com, namespaces, URLs, destinations ArgoCD) est dérivé par
+   convention par `platform-bootstrap/scripts/platform_inventory.py` (le
+   fichier de même nom dans `toolbox` en est une copie). Un `environments:`
+   explicite reste possible pour surcharger entièrement la séquence
+   dev/rec/preprod/prod (voir `helloworld.yaml` comme exemple).
 3. Au merge de cette MR, la chaîne se déclenche automatiquement : régénération
    des manifests ArgoCD (`ApplicationSet`/`AppProject`), régénération de
    l'inventaire Terraform (`apps.auto.tfvars.json`), création des projets
@@ -101,14 +106,14 @@ fois).
    sont créés vides, sauf pour une app historique déclarée
    `importFromGithub: true` :
    ```sh
-   git -C <app> remote add gitlab https://gitlab.192.168.33.100.nip.io/<group>/<app>.git
+   git -C <app> remote add gitlab https://gitlab.com/k8s-gitops-lab/<group>/<app>.git
    git -C <app> push gitlab main
-   git -C <app>-iac remote add gitlab https://gitlab.192.168.33.100.nip.io/<group>/<app>-iac.git
+   git -C <app>-iac remote add gitlab https://gitlab.com/k8s-gitops-lab/<group>/<app>-iac.git
    git -C <app>-iac push gitlab main
    ```
    (`<group>` est celui déclaré à l'étape 2.)
 5. Vérifier le résultat : le projet apparaît dans GitLab
-   (`https://gitlab.192.168.33.100.nip.io/<group>/`), les `Application`
+   (`https://gitlab.com/k8s-gitops-lab/<group>/`), les `Application`
    ArgoCD correspondantes sont visibles et synchronisées (`make argocd-status` ou
    l'UI ArgoCD), et le premier merge sur `<app>` déclenche le pipeline
    `ci-templates` (build once, déploiement automatique vers `dev`).
@@ -126,6 +131,20 @@ Parcours complet avec images VM Packer :
 make platform-up
 ```
 
+Variables d'environnement requises pour la séquence complète (vérifiées en
+préflight avant tout lancement de Packer/Vagrant — `make platform-up` échoue
+immédiatement avec la liste des manques) :
+
+- `GITLAB_TOKEN` : PAT gitlab.com scope `api`, requis par `gitlab-tf-state-seed`
+  et par `gitlab-git-credentials` en l'absence de credential déjà stockée et
+  valide.
+- `GITHUB_TOKEN` : PAT GitHub scope `repo`, requis par `gitlab-tf-state-seed`
+  (toutes les variables du module Terraform doivent être fournies pour
+  l'import).
+- Binaires locaux : `vagrant`, `packer` (étape `vm-images`), `kubectl`
+  (à partir de `platform-bootstrap`), `terraform` (`gitlab-tf-state-seed`,
+  même version que `gitlab-projects-iac/terraform/versions.tf`).
+
 Cette commande enchaine, avec reprise automatique en cas d'échec
 (`.bootstrap-state.json`, durées par étape incluses — `make
 platform-bootstrap-status` pour les consulter) :
@@ -142,6 +161,11 @@ platform-bootstrap-status` pour les consulter) :
 - `make platform-bootstrap` : installe ArgoCD puis bootstrappe GitLab, le
   runner et les apps plateforme (les images applicatives sont poussées sur
   GHCR, pas sur un registry interne).
+- `make gitlab-tf-state-seed` : réimporte dans le state Terraform en-cluster
+  les ressources gitlab.com déjà existantes (groupe racine, variables,
+  sous-groupes/projets/branch protections survivants) — évite les échecs
+  `403`/`already been taken` du premier apply après un rebuild complet du
+  cluster sans reset préalable. Nécessite `GITLAB_TOKEN` et `GITHUB_TOKEN`.
 - `make ghcr-pull-secret-wait` : attend que Flux depose le secret GHCR source
   (dechiffre depuis `platform-gitops/flux-secrets/`) dans le namespace
   `argocd` ; External Secrets Operator le distribue ensuite en continu sous
@@ -174,6 +198,7 @@ make vm-images
 make cluster-from-images
 make snapshot-cluster
 make platform-bootstrap
+make gitlab-tf-state-seed
 make ghcr-pull-secret-wait
 make gitlab-git-credentials
 make gitlab-projects-wait

@@ -6,27 +6,57 @@ defaut d'un environnement partage ou durable.
 
 ## TLS auto-signe
 
-GitLab et ArgoCD sont exposes en HTTPS sur `*.nip.io`, avec un certificat
-wildcard termine par la Gateway Traefik (`nip-io-wildcard-tls`), emis et
-renouvele par cert-manager depuis une CA interne auto-signee (`ClusterIssuer`
-`poc-lab-ca-issuer`) — le cycle de vie du certificat est gere, mais la CA
-reste auto-signee : le certificat est toujours a accepter dans le navigateur,
-et a faire confiance explicitement dans les outils (scripts bootstrap
-`GITLAB_INSECURE_TLS=true`, trust store du job `semantic-release`). Pour une
-plateforme durable, brancher le `ClusterIssuer` sur une PKI d'entreprise ou
-un emetteur ACME public et une policy d'entree explicite.
-Les images applicatives sont poussees sur GHCR (TLS public) : pas de registry
-interne au cluster a securiser.
+Depuis la bascule gitlab.com du 2026-07-10 (cf. `docs/backlog.md`), seuls
+**ArgoCD et les apps** restent derriere la Gateway Traefik locale, exposes en
+HTTPS sur `*.nip.io` avec un certificat wildcard (`nip-io-wildcard-tls`), emis
+et renouvele par cert-manager depuis une CA interne auto-signee
+(`ClusterIssuer` `poc-lab-ca-issuer`) — le cycle de vie du certificat est
+gere, mais la CA reste auto-signee : le certificat est toujours a accepter
+dans le navigateur pour ces services-la. Pour une plateforme durable,
+brancher le `ClusterIssuer` sur une PKI d'entreprise ou un emetteur ACME
+public et une policy d'entree explicite.
 
-## Comptes bootstrap
+**gitlab.com, GHCR et Grafana Cloud sont en TLS public** (pas de CA a
+distribuer cote client) : GitLab n'est plus in-cluster, les images
+applicatives sont poussees sur GHCR, et les metriques/logs partent vers
+Grafana Cloud.
 
-Les scripts de seed utilisent le compte `root` GitLab ou des tokens de bootstrap.
-Les secrets repository ArgoCD (acces aux repos manifests prives) sont fabriques
-par External Secrets Operator directement a partir du mot de passe root GitLab
-(`gitlab-gitlab-initial-root-password`) — entierement declaratif mais non
-scope. Pour une plateforme durable, creer des tokens scopes par usage : seed,
-push manifests, lecture ArgoCD (PAT `read_repository` dedie), runner
-registration.
+**Traversee du proxy Zscaler d'entreprise** : tout trafic sortant du cluster
+vers ces services publics passe par un proxy qui re-signe le TLS avec une CA
+d'entreprise (Zscaler) — sans confiance explicite de cette CA, ces flux
+echouent en erreur de certificat. La CA est distribuee a chaque composant qui
+en a besoin :
+- runner CI (`argocd/platform/gitlab-runner-com/values.yaml`,
+  `certsSecretName: zscaler-ca-runner-com`) — les jobs recoivent en plus la CA
+  via la variable CI `CUSTOM_CA_CERTS` (variable de groupe gitlab.com, cf.
+  `gitlab-projects-iac/terraform/main.tf`) pour leurs propres appels sortants
+  (ex. push vers Grafana Cloud dans `ci-templates`) ;
+- tf-controller (`argocd/platform/tf-controller/zscaler-ca-configmap.yaml`,
+  monte dans le pod runner Terraform via `SSL_CERT_FILE`, cf.
+  `terraform-gitlab-com.yaml`) — necessaire pour que le provider `gitlab_*`
+  atteigne l'API gitlab.com ;
+- ClusterExternalSecret Grafana Cloud
+  (`argocd/platform/grafana-cloud-secret/external-secret.yaml`) — meme CA
+  pour joindre `*.grafana.net`.
+
+## Comptes et tokens en circulation
+
+Plus de compte `root` GitLab ni de mot de passe root fabrique par un script
+(mecanisme et secret `gitlab-gitlab-initial-root-password` supprimes avec
+l'instance locale). L'inventaire reel des tokens, en circulation sur ce POC :
+
+| Token | Scope | Stocke dans | Usages |
+|---|---|---|---|
+| PAT operateur gitlab.com (`GITLAB_TOKEN`) | `api` (proprietaire du groupe) | git-credential local (poste operateur), variable de groupe `GITLAB_PUSH_TOKEN` (meme valeur, `gitlab-projects-iac/terraform/main.tf`), secret SOPS `flux-secrets/gitlabcom-credentials.yaml` (cle `gitlab_token`, utilise par le CR Terraform `gitlab-iac-com` et par le `ClusterSecretStore gitlabcom-secrets` pour les repo-creds ArgoCD) | `gitlab-reset.py`, `gitlab-tf-state-seed.py`, `gitlab-git-creds.py`, push des manifests par le pipeline `deploy-gitops` (`GITLAB_PUSH_TOKEN`), apply Terraform gitlab.com |
+| PAT GitHub (`GITHUB_TOKEN`) | `repo` | secret SOPS `flux-secrets/github-credentials.yaml`, variable de groupe `GHCR_TOKEN` (meme valeur, pull GHCR) et `GITHUB_TOKEN` du groupe `infra` (CI `platform-gitops`, push `onboard-apps`) | import initial des projets GitLab depuis GitHub (`import_url`), pull d'images GHCR par les runners, push automatique des manifests generes vers GitHub par la CI de `platform-gitops`, `gitlab-tf-state-seed.py` |
+
+**Rayon d'explosion** : un seul PAT proprietaire scope `api` couvre tout
+gitlab.com (reset, seed, credentials git, variable de groupe) — sa
+compromission expose l'integralite du groupe `k8s-gitops-lab`. Pas de token
+scope par projet ni de compte de service dedie (gitlab.com Free ne permet pas
+`gitlab_group_access_token` a ce compte, 400 constate — cf.
+`gitlab-projects-iac/terraform/main.tf`). Dette assumee et suivie a l'axe 7
+du backlog (tokens scopes par projet).
 
 ## CA corporate
 

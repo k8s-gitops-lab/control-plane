@@ -54,13 +54,11 @@ Si un commit est créé côté GitLab (ex. merge d'une MR), il doit aussi être
 répercuté sur GitHub : récupérer la branche depuis `gitlab` et la pousser
 vers `origin` avant de considérer le travail terminé.
 
-## OpenWiki
+## Documentation
 
-This repository has documentation located in the /openwiki directory.
+Pas d'OpenWiki dans ce dépôt. Entrées réelles :
 
-Start here:
-- [OpenWiki quickstart](openwiki/quickstart.md)
-
-OpenWiki includes repository overview, architecture notes, workflows, domain concepts, operations, integrations, testing guidance, and source maps.
-
-When working in this repository, read the OpenWiki quickstart first, then follow its links to the relevant architecture, workflow, domain, operation, and testing notes.
+- `README.md` : parcours utilisateurs, usage, séquence `platform-up`.
+- `docs/repo-map.md` : rôle de chaque dépôt du workspace.
+- `docs/backlog.md` : backlog produit et historique des décisions (dont la
+  migration GitLab self-hosted → gitlab.com).
