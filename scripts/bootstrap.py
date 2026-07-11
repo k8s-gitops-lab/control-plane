@@ -47,6 +47,7 @@ STEPS: list[tuple[str, str, object]] = [
     ("cluster-from-images", "cluster-from-images", pc.check_cluster),
     ("snapshot-cluster", "snapshot-cluster", pc.check_vm_snapshot),
     ("platform-bootstrap", "platform-bootstrap", pc.check_argocd_ready),
+    ("gitlab-tf-state-seed", "gitlab-tf-state-seed", pc.check_gitlab_tf_state_seeded),
     ("ghcr-pull-secret", "ghcr-pull-secret-wait", pc.check_ghcr_secret),
     ("gitlab-git-creds", "gitlab-git-credentials", pc.check_git_creds),
     ("gitlab-projects", "gitlab-projects-wait", pc.check_gitlab_iac),

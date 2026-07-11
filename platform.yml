@@ -20,6 +20,7 @@ platform:
     platform: ../platform-bootstrap
     gitops: ../platform-gitops
     toolbox: ../toolbox
+    gitlabIac: ../gitlab-projects-iac
 
 versions:
   argocd: v3.4.4

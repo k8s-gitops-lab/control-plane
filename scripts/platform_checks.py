@@ -8,6 +8,7 @@ imprimer : l'appelant décide du format d'affichage.
 from __future__ import annotations
 
 import base64
+import gzip
 import json
 import os
 import subprocess
@@ -49,6 +50,7 @@ def load_values(config: str | os.PathLike | None = None) -> dict[str, str]:
         "PLATFORM_REPO_ROOT": repos["platform"],
         "GITOPS_REPO_ROOT": repos["gitops"],
         "TOOLBOX_REPO": repos["toolbox"],
+        "GITLAB_IAC_REPO_ROOT": repos["gitlabIac"],
     }
 
 
@@ -213,25 +215,58 @@ def check_git_creds(values: dict[str, str]) -> tuple[bool, str]:
     return ok, detail
 
 
+GITLAB_IAC_TERRAFORM_CR = "gitlab-iac-com"
+GITLAB_IAC_TFSTATE_SECRET = "tfstate-default-gitlab-projects-iac-com"
+
+
 def check_gitlab_iac(values: dict[str, str]) -> tuple[bool, str]:
-    """Vérifie que le CR Terraform Flux gitlab-iac a fini son apply.
+    """Vérifie que le CR Terraform Flux gitlab-iac-com a fini son apply.
 
     Les projets GitLab applicatifs (groupes, <app>/<app>-iac, mirroring) sont
     créés de façon asynchrone par ce CR après le sync ArgoCD. Tant qu'il n'est
     pas Ready, l'API GitLab renvoie 404 sur ces projets.
     """
     out = kubectl_out([
-        "-n", "flux-system", "get", "terraforms.infra.contrib.fluxcd.io", "gitlab-iac",
+        "-n", "flux-system", "get", "terraforms.infra.contrib.fluxcd.io", GITLAB_IAC_TERRAFORM_CR,
         "-o", 'jsonpath={.status.conditions[?(@.type=="Ready")].status}'
                '|{.status.conditions[?(@.type=="Ready")].message}',
     ])
     if out is None:
-        return False, "CR Terraform gitlab-iac introuvable (namespace flux-system) — tf-controller pas encore convergé ?"
+        return False, f"CR Terraform {GITLAB_IAC_TERRAFORM_CR} introuvable (namespace flux-system) — tf-controller pas encore convergé ?"
     status, _, message = out.partition("|")
     status, message = status.strip(), message.strip()
     if status != "True":
-        return False, f"Terraform gitlab-iac non appliqué (Ready={status or '?'} : {message or 'apply en cours'})"
-    return True, f"Terraform gitlab-iac appliqué ({message})"
+        return False, f"Terraform {GITLAB_IAC_TERRAFORM_CR} non appliqué (Ready={status or '?'} : {message or 'apply en cours'})"
+    return True, f"Terraform {GITLAB_IAC_TERRAFORM_CR} appliqué ({message})"
+
+
+def check_gitlab_tf_state_seeded(values: dict[str, str]) -> tuple[bool, str]:
+    """Vérifie que le state Terraform en-cluster de gitlab-iac-com connaît déjà
+    gitlab_group.root.
+
+    Le groupe racine gitlab.com est persistant (création de groupe top-level
+    bloquée côté API, cf. scripts/gitlab-reset.py) mais le Secret Kubernetes
+    qui porte le state Terraform est neuf à chaque rebuild complet du cluster
+    -- sans réimport, le premier apply de tf-controller tente de recréer ce
+    groupe et échoue en 403. Voir scripts/gitlab-tf-state-seed.py.
+    """
+    raw = kubectl_out([
+        "-n", "flux-system", "get", "secret", GITLAB_IAC_TFSTATE_SECRET,
+        "-o", "jsonpath={.data.tfstate}",
+    ])
+    if not (raw or "").strip():
+        return False, f"secret {GITLAB_IAC_TFSTATE_SECRET} absent (namespace flux-system)"
+    try:
+        state = json.loads(gzip.decompress(base64.b64decode(raw)))
+    except (ValueError, OSError):
+        return False, f"secret {GITLAB_IAC_TFSTATE_SECRET} illisible (state corrompu ?)"
+    seeded = any(
+        r.get("type") == "gitlab_group" and r.get("name") == "root"
+        for r in state.get("resources", [])
+    )
+    if not seeded:
+        return False, "gitlab_group.root absent du state Terraform en-cluster"
+    return True, "gitlab_group.root présent dans le state Terraform en-cluster"
 
 
 # ---------------------------------------------------------------------------

@@ -9,7 +9,7 @@ START_AT ?=
 STOP_AFTER ?=
 SNAPSHOT_NAME ?= cluster-ready
 
-.PHONY: help validate env vm-images-build vm-images-add vm-images cluster-up cluster-from-images snapshot-cluster restore-cluster platform-up platform-provision platform-from-snapshot platform-bootstrap platform-bootstrap-status platform-bootstrap-reset platform-down platform-destroy platform-verify argocd-password argocd-status ghcr-token-init ghcr-pull-secret-wait gitlab-reset gitlab-git-credentials gitlab-projects-wait argocd-apps-wait
+.PHONY: help validate env vm-images-build vm-images-add vm-images cluster-up cluster-from-images snapshot-cluster restore-cluster platform-up platform-provision platform-from-snapshot platform-bootstrap platform-bootstrap-status platform-bootstrap-reset platform-down platform-destroy platform-verify argocd-password argocd-status ghcr-token-init ghcr-pull-secret-wait gitlab-reset gitlab-tf-state-seed gitlab-git-credentials gitlab-projects-wait argocd-apps-wait
 
 help: ## Affiche cette aide
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-24s\033[0m %s\n", $$1, $$2}'
@@ -88,9 +88,13 @@ platform-verify: ## Smoke test de bout en bout : cluster, GitLab, ArgoCD Synced/
 	@echo "==> cockpit: platform-verify -> scripts/platform-verify.py"; \
 	CONFIG="$(CONFIG)" python3 scripts/platform-verify.py
 
-gitlab-reset: ## ACTION DESTRUCTIVE : supprime le groupe gitlab.com k8s-gitops-lab (a lancer avant platform-up pour un bootstrap reproductible depuis zero). Necessite GITLAB_TOKEN.
+gitlab-reset: ## ACTION DESTRUCTIVE : vide le groupe gitlab.com k8s-gitops-lab (sous-groupes/projets ; le groupe racine est conserve -- a lancer avant platform-up pour un bootstrap reproductible depuis zero). Necessite GITLAB_TOKEN.
 	@echo "==> cockpit: gitlab-reset -> scripts/gitlab-reset.py"; \
 	python3 scripts/gitlab-reset.py
+
+gitlab-tf-state-seed: ## Importe gitlab_group.root dans le state Terraform en-cluster de gitlab-iac-com si absent (evite le 403 au premier apply apres un rebuild complet du cluster). Necessite GITLAB_TOKEN, GITHUB_TOKEN et le cluster/flux-system deja up (apres platform-bootstrap).
+	@echo "==> cockpit: gitlab-tf-state-seed -> scripts/gitlab-tf-state-seed.py"; \
+	python3 scripts/gitlab-tf-state-seed.py
 
 gitlab-git-credentials: ## Verifie le PAT gitlab.com (GITLAB_TOKEN) stocke dans git-credential, le (re)stocke si absent/invalide/proche expiration
 	@$(ENV); \
@@ -111,7 +115,7 @@ platform-down: ## Eteint les VMs de la plateforme sans les detruire
 	echo "==> cockpit: platform-down -> make -C $$INFRASTRUCTURE_REPO down"; \
 	$(MAKE_BIN) -C "$$INFRASTRUCTURE_REPO" down
 
-platform-destroy: ## Detruit les VMs de la plateforme et reinitialise le groupe gitlab.com (GITLAB_TOKEN requis pour ce dernier volet)
+platform-destroy: ## Detruit les VMs de la plateforme et vide le groupe gitlab.com (sous-groupes/projets, groupe racine conserve -- GITLAB_TOKEN requis pour ce dernier volet)
 	@$(ENV); \
 	echo "==> cockpit: platform-destroy -> make -C $$INFRASTRUCTURE_REPO destroy"; \
 	$(MAKE_BIN) -C "$$INFRASTRUCTURE_REPO" destroy

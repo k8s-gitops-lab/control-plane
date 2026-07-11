@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Attend que le Terraform gitlab-iac (tf-controller) crée les projets GitLab.
+"""Attend que le Terraform gitlab-iac-com (tf-controller) crée les projets GitLab.
 
 Les projets GitLab applicatifs (groupes, repos <app>/<app>-iac, mirroring vers
-GitHub) sont provisionnés par le CR Terraform Flux `gitlab-iac`
-(platform-gitops/argocd/platform/tf-controller/terraform-gitlab.yaml), appliqué
-de façon asynchrone après le sync ArgoCD. platform-verify interroge l'API
-GitLab pour ces projets : sans cette attente, il s'exécute avant la fin du
-`terraform apply` et échoue en 404 sur des ressources encore inexistantes.
+GitHub) sont provisionnés par le CR Terraform Flux `gitlab-iac-com`
+(platform-gitops/argocd/platform/tf-controller/terraform-gitlab-com.yaml),
+appliqué de façon asynchrone après le sync ArgoCD. platform-verify interroge
+l'API GitLab pour ces projets : sans cette attente, il s'exécute avant la fin
+du `terraform apply` et échoue en 404 sur des ressources encore inexistantes.
 
 Usage :
   CONFIG=platform.yml python3 scripts/gitlab-iac-wait.py
@@ -41,8 +41,8 @@ def main() -> None:
             sys.exit(
                 f"Timeout ({timeout}s) : {detail}.\n"
                 "Vérifier l'état du CR Terraform et du tf-controller :\n"
-                "  kubectl -n flux-system get terraforms.infra.contrib.fluxcd.io gitlab-iac\n"
-                "  kubectl -n flux-system describe terraforms.infra.contrib.fluxcd.io gitlab-iac"
+                "  kubectl -n flux-system get terraforms.infra.contrib.fluxcd.io gitlab-iac-com\n"
+                "  kubectl -n flux-system describe terraforms.infra.contrib.fluxcd.io gitlab-iac-com"
             )
         print(f"En attente ({detail})...")
         time.sleep(POLL_INTERVAL)

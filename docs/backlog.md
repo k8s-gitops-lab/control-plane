@@ -620,6 +620,44 @@ donne un cycle entièrement reproductible depuis zéro des deux côtés
 (cluster ET gitlab.com), sans étape manuelle si `GITLAB_TOKEN` est déjà
 dans l'environnement de l'opérateur.
 
+**Révision du 2026-07-11 : le groupe racine n'est plus supprimé par le
+reset.** Constaté en pratique lors d'un bootstrap : la création d'un
+groupe top-level gitlab.com via l'API échoue systématiquement en `403
+Forbidden` (sans détail), y compris sur un chemin jamais utilisé
+auparavant — donc pas un conflit de chemin (la renomination immédiate du
+groupe supprimé, supposée dans l'entrée ci-dessus, n'a pas pu être mise en
+défaut mais n'est plus le sujet). Le compte a pourtant `can_create_group:
+true` et un PAT avec le scope `api` complet ; il s'agit très probablement
+de la vérification d'identité anti-abus que gitlab.com impose à la
+création de nouveaux groupes top-level (l'API ne renvoie aucun détail,
+contrairement à l'UI qui affiche l'étape de vérification). Le groupe
+`k8s-gitops-lab` est donc désormais créé **une fois** manuellement via
+l'UI, puis importé dans l'état Terraform (cf.
+`gitlab-projects-iac/terraform-gitlabcom/main.tf`, commentaire sur
+`gitlab_group.root`) — `gitlab-reset.py` ne le supprime plus jamais : il
+vide seulement ses sous-groupes et projets directs (simple `DELETE`, pas
+soumis à cette restriction, chemin libéré immédiatement). `make
+gitlab-reset` / `make platform-destroy` gardent le même usage, juste un
+comportement moins destructeur.
+
+**Trou restant découvert le 2026-07-11 : le groupe racine survit aux resets
+gitlab.com, mais pas aux rebuilds complets du cluster.** Le state Terraform
+de `gitlab-iac-com` vit dans un Secret Kubernetes en-cluster, neuf à chaque
+`make platform-destroy && make platform-up` (contrairement au groupe racine
+sur gitlab.com, jamais supprimé). Résultat : le premier `terraform apply`
+après un rebuild complet tente de recréer `gitlab_group.root` -> `403`,
+bloquant toute la chaîne (sous-groupes/projets/variables gitlab.com jamais
+créés, `git push gitlab` des 4 repos GitLab-first en échec). Corrigé :
+nouvelle étape `scripts/gitlab-tf-state-seed.py` (`make gitlab-tf-state-seed`,
+intégrée à la séquence `platform-up` juste après `platform-bootstrap`) —
+réimporte `gitlab_group.root` dans le state en-cluster si absent (idempotent,
+`platform_checks.check_gitlab_tf_state_seeded`), puis force un reconcile du
+CR Terraform si celui-ci existe déjà. Au passage, `platform_checks.py` et
+`scripts/gitlab-iac-wait.py` référençaient encore le CR Terraform `gitlab-iac`
+(instance locale, décommissionnée) au lieu de `gitlab-iac-com` — corrigé,
+c'était un trou distinct qui aurait fait tourner `make gitlab-projects-wait`
+indéfiniment en cible sur un CR inexistant.
+
 ---
 
 ## Entretien courant
